@@ -49,3 +49,7 @@ Temporary Items
 input/*
 NUB_Code/.Rproj.user/*
 *.Rproj
+*.Rhistory
+*.RData
+.Rproj.user
+*.Rproj
