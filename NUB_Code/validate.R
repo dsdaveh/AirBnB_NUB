@@ -46,7 +46,7 @@ print(ndcg_at_k(c(0,1,1,1)))
 
 cat ('\nExamples from Score predictions using NDCG\n')
 preds <- matrix( c('US', 'FR', 'FR', 'US', 'FR', 'FR', 'US', 'FR'), nrow=4, byrow= TRUE) 
-truth <- c('US','US','FR','US')
+truth <- c('US','US','FR','FR')
 cat("preds\n")
 print(as.data.frame(preds))
 score <- score_predictions( preds, truth)
