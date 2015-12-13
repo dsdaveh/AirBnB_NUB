@@ -14,15 +14,20 @@ library(bit64)
 source('nub_utils.R')
 
 ### parameters
-run_id <- format(Sys.time(), "Rho_%Y_%m_%d_%H%M%S")
+if ( exists("set_run_id") ) {
+    run_id <- set_run_id
+    rm( set_run_id )
+} else {
+    run_id <- format(Sys.time(), "Rho_%Y_%m_%d_%H%M%S")
+}
 tcheck.print <- TRUE
 set.seed(1)
 kfold <- 5   #set to -1 to skip
 only1 <- TRUE  
-create_csv <- FALSE
+create_csv <- TRUE
 
 xgb_params <- list( 
-    eta = 0.003,
+    eta = 0.1,
     max_depth = 9, 
     subsample = 0.5,
     colsample_bytree = 0.5,
@@ -31,7 +36,7 @@ xgb_params <- list(
     num_class = 12,
     nthreads = 4
     )
-xgb_nrounds <- 25
+xgb_nrounds <- 50
 ###
 
 tcheck(0) ####
@@ -60,7 +65,8 @@ df_all <- df_all %>%
     mutate ( tfa = ymd_hms( timestamp_first_active)) %>%
     mutate ( tfa_year = year( tfa ) 
              , tfa_month = month( tfa ) 
-             , tfa_day = day( ymd_hms( tfa ) )
+             , tfa_day = day( tfa ) 
+             , tfa_hr = hour( tfa) 
     )
 df_all$timestamp_first_active <- NULL
 df_all$tfa <- NULL
@@ -136,7 +142,13 @@ if (i > 1) {
 ## nrounds=25       1/5: Mean score = 0.825033   12/13 ~ 1AM    (~5min)
 ## nrounds=100      1/5: Mean score = 0.825753   12/13          (~12min)  ( full train 0.84231 is much higher)
 ## nrounds=25  (validated same as above)
-## eta=.003 1/5: Mean score = 0.818456  
+## eta=.003         1/5: Mean score = 0.818456  
+## nrounds=100      1/5: Mean score = 0.819815
+## nrounds=50 eta=0.01       1/5: Mean score = 0.821307
+## add hour         1/5: Mean score = 0.821307
+## eta=.1           1/5: Mean score = 0.826301
+## eta=.05          1/5: Mean score = 0.825543
+## eta=.1           1/5: Mean score = 0.826301                  (~8min) Mean score (full training set)= 0.837861
 
 stopifnot( create_csv )
 
