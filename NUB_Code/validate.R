@@ -3,7 +3,7 @@
 # and dietCoke's Score predictions using NDCG
 
 # simplified to calculate only method 1:
-# per Wikipedia: the latter is commonly used in industry including major web search companies and 
+# per Wikipedia: "the latter is commonly used in industry including major web search companies and 
 # data science competition platform such as Kaggle."
 #
 # you can use this script for cross-validation
@@ -22,14 +22,14 @@ ndcg_at_k <- function(r, k=min(5, length(r)) ) {
 }
 
 score_predictions <- function(preds, truth) {
-# preds: matrix or data.frame
-# one row for each observation, one column for each prediction.
-# Columns are sorted from left to right descending in order of likelihood.
-# truth: vector
-# one row for each observation.
+    # preds: matrix or data.frame
+    # one row for each observation, one column for each prediction.
+    # Columns are sorted from left to right descending in order of likelihood.
+    # truth: vector
+    # one row for each observation.
     preds <- as.matrix(preds)
     truth <- as.vector(truth)
-
+    
     stopifnot( length(truth) == nrow(preds))
     r <- apply( cbind( truth, preds), 1
                 , function(x) ifelse( x == x[1], 1, 0))[ -1, ]
@@ -46,7 +46,7 @@ print(ndcg_at_k(c(0,1,1,1)))
 
 cat ('\nExamples from Score predictions using NDCG\n')
 preds <- matrix( c('US', 'FR', 'FR', 'US', 'FR', 'FR', 'US', 'FR'), nrow=4, byrow= TRUE) 
-truth <- c('US','US','FR','FR')
+truth <- c('US','US','FR', 'FR')
 cat("preds\n")
 print(as.data.frame(preds))
 score <- score_predictions( preds, truth)
@@ -56,4 +56,3 @@ print(data.frame( truth=truth, score=score ))
 # The nDCG values for all queries can be averaged to obtain a measure
 # of the average performance of a search engine's ranking algorithm.
 cat('mean score = ', mean(score), '\n')
-
