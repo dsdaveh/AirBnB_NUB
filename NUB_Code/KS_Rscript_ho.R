@@ -19,10 +19,10 @@ tcheck.print <- TRUE
 set.seed(1)
 kfold <- 5   #set to -1 to skip
 only1 <- TRUE  
-create_csv <- TRUE
+create_csv <- FALSE
 
 xgb_params <- list( 
-    eta = 0.1,
+    eta = 0.003,
     max_depth = 9, 
     subsample = 0.5,
     colsample_bytree = 0.5,
@@ -31,6 +31,7 @@ xgb_params <- list(
     num_class = 12,
     nthreads = 4
     )
+xgb_nrounds <- 25
 ###
 
 tcheck(0) ####
@@ -103,7 +104,7 @@ for (i in 1:kfold) {
     xgb <- xgboost(data = data.matrix(X[-iho ,-1]) 
                    , label = y[-iho]
                    , params = xgb_params
-                   , nrounds=25  
+                   , nrounds = xgb_nrounds  
     )
     
     
@@ -131,13 +132,19 @@ if (i > 1) {
     # [1] 0.00157869
 }  
 
+## 80% 1fold validation run records:
+## nrounds=25       1/5: Mean score = 0.825033   12/13 ~ 1AM    (~5min)
+## nrounds=100      1/5: Mean score = 0.825753   12/13          (~12min)  ( full train 0.84231 is much higher)
+## nrounds=25  (validated same as above)
+## eta=.003 1/5: Mean score = 0.818456  
+
 stopifnot( create_csv )
 
 #retrain on full X
 xgb <- xgboost(data = data.matrix(X[ ,-1]) 
                , label = y
                , params = xgb_params
-               , nrounds=25  
+               , nrounds = xgb_nrounds  
 )
 
 y_trn_pred <- predict(xgb, data.matrix(X[,-1]))
