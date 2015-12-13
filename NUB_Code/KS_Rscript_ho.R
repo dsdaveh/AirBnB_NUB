@@ -14,9 +14,12 @@ library(bit64)
 source('nub_utils.R')
 
 ### parameters
+run_id <- format(Sys.time(), "Rho_%Y_%m_%d_%H%M%S")
 tcheck.print <- TRUE
 set.seed(1)
-kfold <- 5
+kfold <- 5   #set to -1 to skip
+only1 <- TRUE  
+create_csv <- TRUE
 ###
 
 tcheck(0) ####
@@ -71,6 +74,12 @@ ix_upper <- 0
 ix_inc <- ceiling( length(ix_shuffle) / kfold )
 ho_scores <- numeric(kfold)
 
+top5_preds <- function (xgb_pred) {
+    predictions <- as.data.frame(matrix(xgb_pred, nrow=12))
+    rownames(predictions) <- c('NDF','US','other','FR','CA','GB','ES','IT','PT','NL','DE','AU')
+    as.vector(apply(predictions, 2, function(x) names(sort(x)[12:8])))
+}
+
 tcheck( desc="begin kfold cross validation scores") ####
 for (i in 1:kfold) {
     
@@ -93,11 +102,6 @@ for (i in 1:kfold) {
                    nthread = 3
     )
     
-    top5_preds <- function (xgb_pred) {
-        predictions <- as.data.frame(matrix(xgb_pred, nrow=12))
-        rownames(predictions) <- c('NDF','US','other','FR','CA','GB','ES','IT','PT','NL','DE','AU')
-        as.vector(apply(predictions, 2, function(x) names(sort(x)[12:8])))
-    }
     
     # predict values in hold out set
     y_ho_pred <- predict(xgb, data.matrix(X[iho,-1]))
@@ -107,39 +111,46 @@ for (i in 1:kfold) {
     pred_eval <- y_ho_top5 %>% bind_cols( data.frame(truth_ho, y_ho_score))
     
     ho_scores[i] <- mean(y_ho_score)
-    cat( sprintf( "%d/%d: Mean score = %f10.8\n", i, kfold, ho_scores[i]) ) ; tcheck()
+    cat( sprintf( "%d/%d: Mean score = %f\n", i, kfold, ho_scores[i]) ) ; tcheck()
+    
+    if (only1) break
 }
-tcheck( t=kfold, desc= 'K-f cross validation')
-# [1] "303.310000 elapsed from K-f cross validation:t=3" (Brazil)
 
-summary(ho_scores)
-# Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-# 0.8226  0.8241  0.8242  0.8246  0.8250  0.8269 
-sd(ho_scores)
-# [1] 0.00157869
+if (i > 1) {
+    tcheck( t=kfold, desc= 'K-f cross validation')
+    # [1] "303.310000 elapsed from K-f cross validation:t=3" (Brazil)
+    
+    summary(ho_scores)
+    # Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+    # 0.8226  0.8241  0.8242  0.8246  0.8250  0.8269 
+    sd(ho_scores)
+    # [1] 0.00157869
+}  
 
-# pred_ho <- data.frame( id= rep(X[iho,'id'], each= 5)
-#                        , country= top5_preds( y_ho_pred) )
+stopifnot( create_csv )
 
-# 
-# # predict values in test set
-# y_pred <- predict(xgb, data.matrix(X_test[,-1]))
-# 
-# # extract the 5 classes with highest probabilities
-# predictions <- as.data.frame(matrix(y_pred, nrow=12))
-# rownames(predictions) <- c('NDF','US','other','FR','CA','GB','ES','IT','PT','NL','DE','AU')
-# predictions_top5 <- as.vector(apply(predictions, 2, function(x) names(sort(x)[12:8])))
-# 
-# # create submission 
-# ids <- NULL
-# for (i in 1:NROW(X_test)) {
-#     idx <- X_test$id[i]
-#     ids <- append(ids, rep(idx,5))
-# }
-# submission <- NULL
-# submission$id <- ids
-# submission$country <- predictions_top5
-# 
-# # generate submission file
-# submission <- as.data.frame(submission)
-# write.csv(submission, "submission.csv", quote=FALSE, row.names = FALSE)
+#retrain on full X
+xgb <- xgboost(data = data.matrix(X[ ,-1]), 
+               label = y, 
+               eta = 0.1,
+               max_depth = 9, 
+               nround=25, 
+               subsample = 0.5,
+               colsample_bytree = 0.5,
+               eval_metric = "merror",
+               objective = "multi:softprob",
+               num_class = 12,
+               nthread = 3
+)
+
+y_trn_pred <- predict(xgb, data.matrix(X[,-1]))
+y_trn_top5 <- as.data.frame( matrix( top5_preds( y_trn_pred ), ncol=5, byrow = TRUE)) %>% tbl_df
+y_trn_score <- score_predictions( y_trn_top5, labels)
+cat( sprintf( "Mean score (full training set)= %f\n", mean(y_trn_score)) ) ; tcheck()  #0.8332091
+
+# Test
+y_pred <- predict(xgb, data.matrix(X_test[,-1]))
+y_top5 <- top5_preds( y_pred )
+submission <- data.frame( id= rep(X_test$id, each=5), country=y_top5)
+subfile <- sprintf("../submissions/submission_%s.csv", run_id)
+write.csv(submission, file=subfile , quote=FALSE, row.names = FALSE)
