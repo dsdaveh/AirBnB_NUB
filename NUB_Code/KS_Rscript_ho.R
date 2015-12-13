@@ -20,6 +20,18 @@ set.seed(1)
 kfold <- 5   #set to -1 to skip
 only1 <- TRUE  
 create_csv <- TRUE
+
+xgb_params <- list( 
+    eta = 0.1,
+    max_depth = 9, 
+    nrounds=25, 
+    subsample = 0.5,
+    colsample_bytree = 0.5,
+    eval_metric = "merror",
+    objective = "multi:softprob",
+    num_class = 12,
+    nthreads = 4
+    )
 ###
 
 tcheck(0) ####
@@ -89,17 +101,9 @@ for (i in 1:kfold) {
     iho <- ix_shuffle[ix_lower:ix_upper]
 
     # train xgboost
-    xgb <- xgboost(data = data.matrix(X[-iho ,-1]), 
-                   label = y[-iho], 
-                   eta = 0.1,
-                   max_depth = 9, 
-                   nround=25, 
-                   subsample = 0.5,
-                   colsample_bytree = 0.5,
-                   eval_metric = "merror",
-                   objective = "multi:softprob",
-                   num_class = 12,
-                   nthread = 3
+    xgb <- xgboost(data = data.matrix(X[-iho ,-1]) 
+                   , label = y[-iho]
+                   , params = xgb_params
     )
     
     
@@ -130,17 +134,9 @@ if (i > 1) {
 stopifnot( create_csv )
 
 #retrain on full X
-xgb <- xgboost(data = data.matrix(X[ ,-1]), 
-               label = y, 
-               eta = 0.1,
-               max_depth = 9, 
-               nround=25, 
-               subsample = 0.5,
-               colsample_bytree = 0.5,
-               eval_metric = "merror",
-               objective = "multi:softprob",
-               num_class = 12,
-               nthread = 3
+xgb <- xgboost(data = data.matrix(X[ ,-1]) 
+               , label = y
+               , params = xgb_params
 )
 
 y_trn_pred <- predict(xgb, data.matrix(X[,-1]))
