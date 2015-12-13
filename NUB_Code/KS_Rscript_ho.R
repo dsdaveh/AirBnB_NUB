@@ -14,13 +14,17 @@ library(bit64)
 source('nub_utils.R')
 
 ### parameters
+tcheck.print <- TRUE
 set.seed(1)
 kfold <- 5
 ###
 
+tcheck(0) ####
 # load data
 df_train = fread("../input/train_users_2.csv")
 df_test = fread("../input/test_users.csv")
+
+tcheck( desc="begin data prep") ####
 labels = df_train$country_destination
 df_train$country_destination <- NULL
 
@@ -66,6 +70,8 @@ ix_shuffle <- sample( 1: nrow(X))
 ix_upper <- 0
 ix_inc <- ceiling( length(ix_shuffle) / kfold )
 ho_scores <- numeric(kfold)
+
+tcheck( desc="begin kfold cross validation scores") ####
 for (i in 1:kfold) {
     
     # split out a hold out set
@@ -101,8 +107,9 @@ for (i in 1:kfold) {
     pred_eval <- y_ho_top5 %>% bind_cols( data.frame(truth_ho, y_ho_score))
     
     ho_scores[i] <- mean(y_ho_score)
-    cat( kfold, ': Mean score = ', ho_scores[i], "\n")
+    cat( sprintf( "%d/%d: Mean score = %f10.8\n", i, kfold, ho_scores[i]) ) ; tcheck()
 }
+tcheck( t=kfold, desc= 'K-f cross validation')
 
 # pred_ho <- data.frame( id= rep(X[iho,'id'], each= 5)
 #                        , country= top5_preds( y_ho_pred) )
