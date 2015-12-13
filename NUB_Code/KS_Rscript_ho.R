@@ -24,7 +24,6 @@ create_csv <- TRUE
 xgb_params <- list( 
     eta = 0.1,
     max_depth = 9, 
-    nrounds=25, 
     subsample = 0.5,
     colsample_bytree = 0.5,
     eval_metric = "merror",
@@ -104,6 +103,7 @@ for (i in 1:kfold) {
     xgb <- xgboost(data = data.matrix(X[-iho ,-1]) 
                    , label = y[-iho]
                    , params = xgb_params
+                   , nrounds=25  
     )
     
     
@@ -137,16 +137,21 @@ stopifnot( create_csv )
 xgb <- xgboost(data = data.matrix(X[ ,-1]) 
                , label = y
                , params = xgb_params
+               , nrounds=25  
 )
 
 y_trn_pred <- predict(xgb, data.matrix(X[,-1]))
 y_trn_top5 <- as.data.frame( matrix( top5_preds( y_trn_pred ), ncol=5, byrow = TRUE)) %>% tbl_df
 y_trn_score <- score_predictions( y_trn_top5, labels)
-cat( sprintf( "Mean score (full training set)= %f\n", mean(y_trn_score)) ) ; tcheck()  #0.8332091
+cat( sprintf( "Mean score (full training set)= %f\n", mean(y_trn_score)) ) ; tcheck()  #0.831962
 
 # Test
 y_pred <- predict(xgb, data.matrix(X_test[,-1]))
 y_top5 <- top5_preds( y_pred )
 submission <- data.frame( id= rep(X_test$id, each=5), country=y_top5)
 subfile <- sprintf("../submissions/submission_%s.csv", run_id)
-write.csv(submission, file=subfile , quote=FALSE, row.names = FALSE)
+write.csv(submission, file=subfile , quote=FALSE, row.names = FALSE); tcheck( desc= subfile)
+
+tcheck_df <- get_tcheck()
+print( tcheck_df )
+print( sum(tcheck_df$delta))
