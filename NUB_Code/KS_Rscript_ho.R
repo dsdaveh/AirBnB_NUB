@@ -110,6 +110,13 @@ for (i in 1:kfold) {
     cat( sprintf( "%d/%d: Mean score = %f10.8\n", i, kfold, ho_scores[i]) ) ; tcheck()
 }
 tcheck( t=kfold, desc= 'K-f cross validation')
+# [1] "303.310000 elapsed from K-f cross validation:t=3" (Brazil)
+
+summary(ho_scores)
+# Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+# 0.8226  0.8241  0.8242  0.8246  0.8250  0.8269 
+sd(ho_scores)
+# [1] 0.00157869
 
 # pred_ho <- data.frame( id= rep(X[iho,'id'], each= 5)
 #                        , country= top5_preds( y_ho_pred) )
