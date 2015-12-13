@@ -23,6 +23,7 @@ score_predictions <- function(preds, truth) {
     stopifnot( length(truth) == nrow(preds))
     r <- apply( cbind( truth, preds), 1
                 , function(x) ifelse( x == x[1], 1, 0))[-1, ]
+    if ( ncol(preds) == 1) r <-  rbind( r, r)  #workaround for 1d matrices
     as.vector( apply(r, 2, ndcg_at_k) )
 }
 # 

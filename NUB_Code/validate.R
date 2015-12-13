@@ -7,6 +7,7 @@
 # data science competition platform such as Kaggle."
 #
 # you can use this script for cross-validation
+library(dplyr)
 
 dcg_at_k <- function (r, k=min(5, length(r)) ) {
     #only coded alternative formulation of DCG (used by kaggle)
@@ -33,6 +34,7 @@ score_predictions <- function(preds, truth) {
     stopifnot( length(truth) == nrow(preds))
     r <- apply( cbind( truth, preds), 1
                 , function(x) ifelse( x == x[1], 1, 0))[ -1, ]
+    if ( ncol(preds) == 1) r <-  rbind( r, r)  #workaround for 1d matrices
     as.vector( apply(r, 2, ndcg_at_k) )
 }
 # 
@@ -56,3 +58,22 @@ print(data.frame( truth=truth, score=score ))
 # The nDCG values for all queries can be averaged to obtain a measure
 # of the average performance of a search engine's ranking algorithm.
 cat('mean score = ', mean(score), '\n')
+
+# Read in training data for more benchmarks
+train <- read.csv('../input/train_users.csv')
+
+# All NDF  -- compare to submission script of 0.67909
+score <- score_predictions( rep("NDF", nrow(train)), train$country_destination )
+cat('Training set mean score for all NDF = ', mean(score), '\n')   # 0.5834735
+ 
+# Global probabilities
+top5 <- sort( table(train$country_destination) , decreasing = TRUE)[1:5]
+score <- score_predictions( matrix( rep(names(top5), nrow(train)), ncol=5, byrow=TRUE)
+                            ,  train$country_destination)
+cat('Training set mean score for top 5 global prob = ', mean(score), '\n')   # 0.8067654
+
+# Write submission file to see what this actuall scores  --0.85359
+test <- read.csv('../input/test_users.csv')
+submit <- data.frame( id = rep(test$id, each=5)
+                      , country = rep( names(top5), nrow(test)) )
+write.csv(submit, "submission_global_top5.csv", quote=FALSE, row.names = FALSE)
