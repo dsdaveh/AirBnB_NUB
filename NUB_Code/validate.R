@@ -77,3 +77,6 @@ test <- read.csv('../input/test_users.csv')
 submit <- data.frame( id = rep(test$id, each=5)
                       , country = rep( names(top5), nrow(test)) )
 write.csv(submit, "submission_global_top5.csv", quote=FALSE, row.names = FALSE)
+
+cat("\nTop of submission output\n=================\n")
+print(head(submit),11)
