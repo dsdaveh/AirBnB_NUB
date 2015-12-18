@@ -1,6 +1,7 @@
 # Building on previous script for internal scoring 
-# https://www.kaggle.com/datadave....
+# https://www.kaggle.com/datadave/airbnb-recruiting-new-user-bookings/ndcg-score-r
 # 
+# Kaggle Script: Z-scores for LB benchmarks vs traininig
 
 # find the variance within the training set to verify it explains difference 
 # between local score and LB score
@@ -57,7 +58,7 @@ set.seed(1)
 scores <- data.frame ( score=numeric(), type=character()) 
 for (i in 1:N) {
     truth <- sample( train$country_destination, size )
-    print(table(truth))
+    print( sort( table(truth), decreasing = TRUE) )
     score_NDF <- mean( score_predictions( rep("NDF", size), truth))
     score_top5 <-mean( score_predictions( matrix( rep(names(top5), size), ncol=5, byrow=TRUE), truth) )
     scores <- rbind( scores, data.frame( score=score_NDF, type="NDF"))
@@ -66,8 +67,8 @@ for (i in 1:N) {
     cat(i, ':Training subset mean score for top 5 global prob = ', score_top5, '\n')   # 0.8067654
 }
 
-scores %>% filter( type == "NDF" ) %>% mutate(i=row_number()) %>% ggvis( ~i, ~score) %>% layer_points()
-scores %>% filter( type == "top5" ) %>% mutate(i=row_number()) %>% ggvis( ~i, ~score) %>% layer_points()
+#scores %>% filter( type == "NDF" ) %>% mutate(i=row_number()) %>% ggvis( ~i, ~score) %>% layer_points()
+#scores %>% filter( type == "top5" ) %>% mutate(i=row_number()) %>% ggvis( ~i, ~score) %>% layer_points()
 
 LB_ndf <- 0.67909
 LB_top5 <- 0.85359
@@ -87,6 +88,5 @@ abline(h = mean(sndf), lwd = 2)
 abline(h = mean(sndf)+2*sd(sndf), lty=2)
 abline(h = mean(sndf)-2*sd(sndf), lty=2)
 abline(h = LB_ndf, lwd=2, col="red")
-title("mean nDCG for Training samples -vs- Test (Leaderboard)"
-      ,sub = "All predictions = NDF")
+title("mean nDCG for Training samples -vs- Test (Leaderboard)\nAll predictions = NDF")
 legend( "topright", legend= c("Training", "Test"), col=c("black", "red"), lty=1, lwd=2)
