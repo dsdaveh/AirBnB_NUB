@@ -41,7 +41,7 @@ xgb_nrounds <- 50
 
 tcheck(0) ####
 # load data
-df_train = fread("../input/train_users_2.csv")
+df_train = fread("../input/train_users.csv")
 df_test = fread("../input/test_users.csv")
 
 tcheck( desc="begin data prep") ####
@@ -57,6 +57,7 @@ df_all <- df_all %>%
     mutate ( dac_year = year(date_account_created)
                , dac_month = month(date_account_created)
                , dac_day = day(date_account_created)
+              # , dac_wday = wday(date_account_created)
                )
 df_all$date_account_created <- NULL
 
@@ -66,6 +67,7 @@ df_all <- df_all %>%
     mutate ( tfa_year = year( tfa ) 
              , tfa_month = month( tfa ) 
              , tfa_day = day( tfa ) 
+            # , tfa_wday = wday( tfa )
              , tfa_hr = hour( tfa) 
     )
 df_all$timestamp_first_active <- NULL
@@ -149,6 +151,7 @@ if (i > 1) {
 ## eta=.1           1/5: Mean score = 0.826301
 ## eta=.05          1/5: Mean score = 0.825543
 ## eta=.1           1/5: Mean score = 0.826301                  (~8min) Mean score (full training set)= 0.837861
+## add wday         1/5: Mean score = 0.825606      Mean score (full training set)= 0.839281
 
 stopifnot( create_csv )
 
