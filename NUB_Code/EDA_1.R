@@ -1,5 +1,6 @@
 library(dplyr)
 library(ggvis)
+library(ggplot2)
 library(lubridate)
 
 source( 'data_prep.R')
@@ -66,6 +67,30 @@ top5_diff <- rbind(
 top5_diff %>% group_by( source) %>% ggvis( ~Country, ~top5 ) %>% layer_bars( fill= ~source, stack=FALSE)
 ggplot( top5_diff, aes( Country, top5, fill = source)) + geom_bar( position='dodge', stat='identity')
 
+# add labels back to the data frame -- NA will be test
+userp <- users %>% left_join( trn_dest, by='id')
+
 #gender
-#ggplot( user_ses_trn )
+ggplot( userp, aes( country_destination, fill=gender)) + geom_bar( position = "dodge")
+
+#age
+userp <- userp %>% mutate ( too_young = ifelse( age < 18, "Yes", "No"))
+ggplot( userp, aes( country_destination, fill=too_young)) + geom_bar( position = "dodge")
+table( userp$too_young)
+
+ggplot( userp, aes( country_destination, fill=signup_method)) + geom_bar( position = "dodge")
+table(userp$signup_method)
+
+ggplot( userp, aes( country_destination, fill=signup_flow)) + geom_bar( position = "dodge")
+table(userp$signup_flow)
+
+ggplot( userp, aes( country_destination, fill=language)) + geom_bar( position = "dodge")
+table( userp$language)
+
+ggplot( userp, aes( country_destination, fill=affiliate_channel)) + geom_bar( position = "dodge")
+table( userp$affiliate_channel)
+
+ggplot( userp, aes( country_destination, fill=affiliate_provider)) + geom_bar( position = "dodge")
+table( userp$affiliate_provider)
+
 

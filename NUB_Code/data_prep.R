@@ -1,12 +1,17 @@
+library(magrittr)
 library(dplyr)
 library(readr)
 library(lubridate)
 
-cTypes <- c( "character", "Date", "character",  "character", "factor", "numeric", "factor", "integer", rep("factor", 7) )
-users_trn <- read.csv( '../input/train_users_2.csv', colClasses = c(cTypes, "factor")) %>% tbl_df() 
-users_tst <- read.csv('../input/test_users.csv', colClasses = cTypes) %>% tbl_df() 
-users_trn$date_first_booking <- NULL
-users_tst$date_first_booking <- NULL
+cTypes <- c( "character", "Date", "character",  "character", "factor", "numeric", rep("factor", 9) )
+users_trn <- read.csv( '../input/train_users_2.csv', colClasses = c(cTypes, "factor")) %>% mutate( source = "train" ) %>% tbl_df() 
+users_tst <- read.csv('../input/test_users.csv', colClasses = cTypes) %>% mutate( source = "test" ) %>% tbl_df() 
+
+trn_dest <- users_trn %>% select( id, country_destination )
+users_trn$country_destination <- NULL
+users <- rbind( users_trn, users_tst)
+
+users$date_first_booking <- NULL
 
 countries <- read.csv('../input/countries.csv') %>% tbl_df()
 age_gen <- read.csv('../input/age_gender_bkts.csv') %>% tbl_df()
@@ -17,22 +22,25 @@ sessions$action_detail <- as.factor( sessions$action_detail )
 sessions$device_type <- as.factor( sessions$device_type )
 
 #transforms
-users_trn$tfa <- ymd_hms( users_trn$timestamp_first_active)
-users_tst$tfa <- ymd_hms( users_tst$timestamp_first_active)
-users_trn$timestamp_first_active <- NULL
-users_tst$timestamp_first_active <- NULL
+users$tfa <- ymd_hms( users$timestamp_first_active)
+users$timestamp_first_active <- NULL
 
-users_trn <- users_trn %>% mutate( dac_tfa = as.Date(date_account_created) - as.Date(tfa) )
-users_trn$date_account_created <- NULL
-users_trn_2014 <- users_trn[ year( users_trn$tfa ) == 2014, ]
-users_tst <- users_tst %>% mutate( dac_tfa = as.Date(date_account_created) - as.Date(tfa) )
-users_tst$date_account_created <- NULL
+users <- users %>% mutate( dac_tfa = as.Date(date_account_created) - as.Date(tfa) )
+users$date_account_created <- NULL
 
-sessions <- sessions %>% rename( id = user_id )
-ses_trn <- users_trn %>% inner_join( sessions, by= "id") %>% group_by( id )
-ses_tst <- users_tst %>% inner_join( sessions, by= "id") %>% group_by( id )
+sessions <- sessions %>% rename( id = user_id ) 
 
-user_ses_trn <- slice( ses_trn, 1) %>% ungroup() %>% rename( elapsed0 = secs_elapsed) %>% group_by( id )
-user_ses_tst <- slice( ses_tst, 1) %>% ungroup() %>% rename( elapsed0 = secs_elapsed) %>% group_by( id )
+
+#divide into data w/without sessions
+older <- which( year( users$tfa) < 2014 ) 
+users_older <- users[ older, ]
+users <- users[ -older, ]
+
+elapsed_0 <- sessions %>% group_by( id ) %>%
+    slice(1) %>% ungroup() %>% select( id, secs = secs_elapsed )
+elapsed_0[ is.na(elapsed_0$secs), 'secs' ] <- -1    
+users <- users %>% left_join( elapsed_0, by='id') %>% rename( elapsed_0 = secs)
+
+
 
 
