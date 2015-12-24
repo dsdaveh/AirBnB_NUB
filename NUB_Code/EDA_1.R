@@ -1,6 +1,8 @@
 library(dplyr)
-library(readr)
+library(ggvis)
 library(lubridate)
+
+source( 'data_prep.R')
 
 users_trn <- read_csv( '../input/train_users_2.csv')
 users_tst <- read_csv('../input/test_users.csv')
@@ -38,27 +40,32 @@ users_tst %>% filter(dac_tfa > 0) %>%
     ggvis(~as.numeric(dac_tfa)) %>%
     layer_histograms( width = 100)  #  or not ... DAMN!
 
-sessions <- sessions %>% rename( id = user_id )
-ses_trn <- users_trn %>% inner_join( sessions, by= "id")
-ses_tst <- users_tst %>% inner_join( sessions, by= "id")
-
 #how many uses in the sessions data
 length( unique( ses_trn$id ))  
 length( unique( ses_tst$id ))  # most 
 
 #the handful that don't have session data
-trn_2014 <- users_trn[ year( users_trn$tfa ) == 2014, ]
-trn_no_ses <- setdiff( trn_2014$id, unique( sessions$id ))  #2615 members
+trn_no_ses <- setdiff( users_trn_2014$id, unique( sessions$id ))  #2615 members
 tst_no_ses <- setdiff( users_tst$id, unique( sessions$id ))  # 428 
 
-trn_2014 %>% filter (id %in% trn_no_ses) %>%
+users_trn_2014 %>% filter (id %in% trn_no_ses) %>%
     ggvis( ~country_destination) %>% layer_bars()
 
-top5_no_ses <- sort(table( trn_2014[ trn_2014$id %in% trn_no_ses, 'country_destination']), decreasing = T)[1:5]
+top5_no_ses <- sort(table( users_trn_2014[ users_trn_2014$id %in% trn_no_ses, 'country_destination']), decreasing = T)[1:5]
 barplot(top5_no_ses)
-top5 <- sort(table( trn_2014[ , 'country_destination']), decreasing = T)[1:5]
+top5 <- sort(table( users_trn_2014[ , 'country_destination']), decreasing = T)[1:5]
 barplot(top5)
-100*top5_no_ses/sum(top5_no_ses)
-100*top5/sum(top5)
+top5_ns_pct <- 100*top5_no_ses/sum(top5_no_ses)
+top5_pct <- 100*top5/sum(top5)
+top5_diff <- rbind(
+    data.frame( top5=top5_pct, Country=rownames(top5_pct), source='trn_2014' ),
+    data.frame( top5=top5_ns_pct, Country=rownames(top5_ns_pct), source='no session' )
+)
 
+# More NDF for the missing sessions.  This is really small though so not using it    
+top5_diff %>% group_by( source) %>% ggvis( ~Country, ~top5 ) %>% layer_bars( fill= ~source, stack=FALSE)
+ggplot( top5_diff, aes( Country, top5, fill = source)) + geom_bar( position='dodge', stat='identity')
+
+#gender
+#ggplot( user_ses_trn )
 
