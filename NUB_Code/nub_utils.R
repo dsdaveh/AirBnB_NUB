@@ -1,3 +1,10 @@
+library(fastmatch)
+
+#Fast %in%
+`%fin%` <- function(x, lkup) {
+    fmatch(x, lkup, nomatch = 0L) > 0L
+}
+
 dcg_at_k <- function (r, k=min(5, length(r)) ) {
     #only coded alternative formulation of DCG (used by kaggle)
     r <- as.vector(r)[1:k]

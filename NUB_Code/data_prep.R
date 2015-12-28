@@ -8,10 +8,10 @@ users_trn <- read.csv( '../input/train_users_2.csv', colClasses = c(cTypes, "fac
 users_tst <- read.csv('../input/test_users.csv', colClasses = cTypes) %>% mutate( source = "test" ) %>% tbl_df() 
 
 trn_dest <- users_trn %>% select( id, country_destination )
-users_trn$country_destination <- NULL
+users_tst$country_destination <- NA
 users <- rbind( users_trn, users_tst)
 
-users$date_first_booking <- NULL
+#users$date_first_booking <- NULL
 
 countries <- read.csv('../input/countries.csv') %>% tbl_df()
 age_gen <- read.csv('../input/age_gender_bkts.csv') %>% tbl_df()
