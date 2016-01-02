@@ -18,7 +18,7 @@ if ( exists("set_run_id") ) {
     run_id <- set_run_id
     rm( set_run_id )
 } else {
-    run_id <- format(Sys.time(), "Rho_%Y_%m_%d_%H%M%S")
+    run_id <- format(Sys.time(), "Rho_noOHE_%Y_%m_%d_%H%M%S")
 }
 tcheck.print <- TRUE
 set.seed(1)
@@ -78,11 +78,16 @@ df_all[df_all$age < 14 | df_all$age > 100, age:= -1 ]
 
 # one-hot-encoding features
 df_all <- as.data.frame(df_all)
-# ohe_feats = c('gender', 'signup_method', 'signup_flow', 'language', 'affiliate_channel', 'affiliate_provider', 'first_affiliate_tracked', 'signup_app', 'first_device_type', 'first_browser')
+ohe_feats = c('gender', 'signup_method', 'signup_flow', 'language', 'affiliate_channel', 'affiliate_provider', 'first_affiliate_tracked', 'signup_app', 'first_device_type', 'first_browser')
 # dummies <- dummyVars(~ gender + signup_method + signup_flow + language + affiliate_channel + affiliate_provider + first_affiliate_tracked + signup_app + first_device_type + first_browser, data = df_all)
 # df_all_ohe <- as.data.frame(predict(dummies, newdata = df_all))
 # df_all_combined <- cbind(df_all[,-c(which(colnames(df_all) %in% ohe_feats))],df_all_ohe)
-df_all_combined <- df_all   
+df_all_combined <- df_all 
+for( icol in ohe_feats ) {
+    df_all_combined[ , which( colnames(df_all_combined) == icol )] <- as.factor(
+    df_all_combined[ , which( colnames(df_all_combined) == icol )]
+    )
+}
 
 # split train and test
 X = df_all_combined[df_all_combined$id %in% df_train$id,]
@@ -108,7 +113,7 @@ for (i in 1:kfold) {
     ix_lower <- ix_upper + 1
     ix_upper <- ifelse( i == kfold, length(ix_shuffle), ix_lower + ix_inc - 1)
     iho <- ix_shuffle[ix_lower:ix_upper]
-
+    
     # train xgboost
     xgb <- xgboost(data = data.matrix(X[-iho ,-1]) 
                    , label = y[-iho]
@@ -154,6 +159,8 @@ if (i > 1) {
 ## eta=.1           1/5: Mean score = 0.826301                  (~8min) Mean score (full training set)= 0.837861
 ## add wday         1/5: Mean score = 0.825606      Mean score (full training set)= 0.839281
 
+## no OHE
+## same as #159     1/5: Mean score = 0.825415   Mean score (full training set)= 0.838776: 
 stopifnot( create_csv )
 
 #retrain on full X

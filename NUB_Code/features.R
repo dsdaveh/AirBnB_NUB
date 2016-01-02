@@ -2,9 +2,8 @@ library(dplyr)
 library(ggplot2)
 library(stringr)
 
-if (! exists("sessions") & (nrow(sessions) != 10567737 |
-                            nrow(users) != 138526) 
-) source( 'data_prep.R')
+if (! exists("users"))    load(file="../users.RData") # source('data_prep.R')
+if (! exists("sessions")) load(file="../sessions.RData") # source('data_prep.R')
 
 userf1 <- users
 
@@ -39,8 +38,10 @@ ses_agg <- sessions %>% group_by( id ) %>%
     mutate( dev_int2 = n_dev * as.integer( dev_last )) 
 
 
-ses_agg[ is.na(elapsed_0$lne0), 'lne0' ] <- -999  # separate these for NA's from join   
+ses_agg[ is.na(ses_agg$lne0), 'lne0' ] <- -999  # separate these for NA's from join   
 userf1 <- userf1 %>% left_join( ses_agg, by='id') 
+
+save(userf1, file='../userf1.RData')
 
 # EDA and verification used along the way
 

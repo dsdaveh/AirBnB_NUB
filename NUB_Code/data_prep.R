@@ -46,6 +46,7 @@ older <- which( users$tfa_year < 2014 )
 users_older <- users[ older, ]
 users <- users[ -older, ]
 
-
-
+save(users, file='../users.RData')
+save(users_older, file='../users_older.RData')
+save(sessions, file='../sessions.RData')
 
