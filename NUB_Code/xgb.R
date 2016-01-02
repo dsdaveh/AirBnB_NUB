@@ -1,6 +1,3 @@
-# This R script is based on Sandro's python script, which produces a LB score of 0.8655
-# This script should produce a LB score of 0.86547
-
 # load libraries
 library(xgboost)
 library(stringr)
