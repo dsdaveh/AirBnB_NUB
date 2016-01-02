@@ -11,9 +11,10 @@ library(lubridate)
 library(data.table)
 library(bit64)
 
-tcheck(0) ####
-source('features.R')
+source('nub_utils.R')
+if (! exists("userf1")) load(file="../userf1.RData") # source('features.R')
 
+tcheck(0) ####
 ### parameters
 if ( exists("set_run_id") ) {
     run_id <- set_run_id
@@ -37,25 +38,23 @@ xgb_params <- list(
     num_class = 12,
     nthreads = 4
     )
-xgb_nrounds <- 50
+xgb_nrounds <- 53
 ###
 
 # prep
 tcheck( desc="begin data prep") ####
 
-# one-hot-encoding features
-df_all <- as.data.frame(userf1)
-labels
-ohe_feats = c('gender', 'signup_method', 'signup_flow', 'language', 'affiliate_channel', 'affiliate_provider', 'first_affiliate_tracked', 'signup_app', 'first_device_type', 'first_browser')
-dummies <- dummyVars(~ gender + signup_method + signup_flow + language + affiliate_channel + affiliate_provider + first_affiliate_tracked + signup_app + first_device_type + first_browser, data = df_all)
-df_all_ohe <- as.data.frame(predict(dummies, newdata = df_all))
-df_all_combined <- cbind(df_all[,-c(which(colnames(df_all) %in% ohe_feats))],df_all_ohe)
-
 # split train and test
-X = df_all_combined[df_all_combined$id %in% df_train$id,]
+X <- userf1 %>% filter( source == "train")
+labels <- as.character( X$country_destination )
+X$country_destination <- NULL
+X$source <- NULL
+
 y <- recode(labels,"'NDF'=0; 'US'=1; 'other'=2; 'FR'=3; 'CA'=4; 'GB'=5; 'ES'=6; 'IT'=7; 'PT'=8; 'NL'=9; 'DE'=10; 'AU'=11")
 
-X_test = df_all_combined[df_all_combined$id %in% df_test$id,]
+X_test <- userf1 %>% filter( source == "train")
+X_test$country_destination <- NULL
+X_test$source <- NULL
 
 ix_shuffle <- sample( 1: nrow(X))
 ix_upper <- 0
@@ -77,15 +76,14 @@ for (i in 1:kfold) {
     iho <- ix_shuffle[ix_lower:ix_upper]
 
     # train xgboost
-    xgb <- xgboost(data = data.matrix(X[-iho ,-1]) 
+    xgb <- xgboost(data = data.matrix(X[-iho ,-1]) , missing = NA
                    , label = y[-iho]
                    , params = xgb_params
                    , nrounds = xgb_nrounds  
     )
-    
-    
+
     # predict values in hold out set
-    y_ho_pred <- predict(xgb, data.matrix(X[iho,-1]))
+    y_ho_pred <- predict(xgb, data.matrix(X[iho,-1]), missing = NA)
     y_ho_top5 <- as.data.frame( matrix( top5_preds( y_ho_pred ), ncol=5, byrow = TRUE)) %>% tbl_df
     truth_ho <- labels[iho]
     y_ho_score <- score_predictions( y_ho_top5, truth_ho)
@@ -101,11 +99,8 @@ if (i > 1) {
     tcheck( t=kfold, desc= 'K-f cross validation')
     # [1] "303.310000 elapsed from K-f cross validation:t=3" (Brazil)
     
-    summary(ho_scores)
-    # Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-    # 0.8226  0.8241  0.8242  0.8246  0.8250  0.8269 
-    sd(ho_scores)
-    # [1] 0.00157869
+    cat( sprintf( "%d-fold summary: Mean = %f, sd = %f", 
+                  mean(ho_scores), sd(ho_scores)))
 }  
 
 ## 80% 1fold validation run records:
@@ -121,22 +116,34 @@ if (i > 1) {
 ## eta=.1           1/5: Mean score = 0.826301                  (~8min) Mean score (full training set)= 0.837861
 ## add wday         1/5: Mean score = 0.825606      Mean score (full training set)= 0.839281
 
+## xgb:initial      1/5: Mean score = 0.849507      Mean score (full training set)= 0.880791
+## 
 stopifnot( create_csv )
 
+
+# cv <- xgb.cv(data = data.matrix(X[ ,-1]) , missing = NA
+#                , label = y
+#                , params = xgb_params
+#                , nrounds = 200
+#                , early.stop.round = 10
+#                , nfold = 10
+# )
+# Stopping. Best iteration: 53
+
 #retrain on full X
-xgb <- xgboost(data = data.matrix(X[ ,-1]) 
+xgb <- xgboost(data = data.matrix(X[ ,-1]) , missing = NA
                , label = y
                , params = xgb_params
                , nrounds = xgb_nrounds  
 )
 
-y_trn_pred <- predict(xgb, data.matrix(X[,-1]))
+y_trn_pred <- predict(xgb, data.matrix(X[,-1]), missing = NA)
 y_trn_top5 <- as.data.frame( matrix( top5_preds( y_trn_pred ), ncol=5, byrow = TRUE)) %>% tbl_df
 y_trn_score <- score_predictions( y_trn_top5, labels)
 cat( sprintf( "Mean score (full training set)= %f\n", mean(y_trn_score)) ) ; tcheck()  #0.831962
 
 # Test
-y_pred <- predict(xgb, data.matrix(X_test[,-1]))
+y_pred <- predict(xgb, data.matrix(X_test[,-1]), missing = NA)
 y_top5 <- top5_preds( y_pred )
 submission <- data.frame( id= rep(X_test$id, each=5), country=y_top5)
 subfile <- sprintf("../submissions/submission_%s.csv", run_id)
