@@ -78,10 +78,11 @@ df_all[df_all$age < 14 | df_all$age > 100, age:= -1 ]
 
 # one-hot-encoding features
 df_all <- as.data.frame(df_all)
-ohe_feats = c('gender', 'signup_method', 'signup_flow', 'language', 'affiliate_channel', 'affiliate_provider', 'first_affiliate_tracked', 'signup_app', 'first_device_type', 'first_browser')
-dummies <- dummyVars(~ gender + signup_method + signup_flow + language + affiliate_channel + affiliate_provider + first_affiliate_tracked + signup_app + first_device_type + first_browser, data = df_all)
-df_all_ohe <- as.data.frame(predict(dummies, newdata = df_all))
-df_all_combined <- cbind(df_all[,-c(which(colnames(df_all) %in% ohe_feats))],df_all_ohe)
+# ohe_feats = c('gender', 'signup_method', 'signup_flow', 'language', 'affiliate_channel', 'affiliate_provider', 'first_affiliate_tracked', 'signup_app', 'first_device_type', 'first_browser')
+# dummies <- dummyVars(~ gender + signup_method + signup_flow + language + affiliate_channel + affiliate_provider + first_affiliate_tracked + signup_app + first_device_type + first_browser, data = df_all)
+# df_all_ohe <- as.data.frame(predict(dummies, newdata = df_all))
+# df_all_combined <- cbind(df_all[,-c(which(colnames(df_all) %in% ohe_feats))],df_all_ohe)
+df_all_combined <- df_all   
 
 # split train and test
 X = df_all_combined[df_all_combined$id %in% df_train$id,]
