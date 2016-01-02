@@ -140,7 +140,7 @@ print(imp_mat)
 y_trn_pred <- predict(xgb, data.matrix(X[,-1]), missing = NA)
 y_trn_top5 <- as.data.frame( matrix( top5_preds( y_trn_pred ), ncol=5, byrow = TRUE)) %>% tbl_df
 y_trn_score <- score_predictions( y_trn_top5, labels)
-cat( sprintf( "Mean score (full training set)= %f\n", mean(y_trn_score)) ) ; tcheck()  #0.831962
+cat( sprintf( "Mean score (full training set)= %f\n", mean(y_trn_score)) ) ; tcheck()  
 
 # Test
 y_pred <- predict(xgb, data.matrix(X_test[,-1]), missing = NA)
