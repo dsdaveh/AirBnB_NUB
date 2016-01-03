@@ -26,8 +26,8 @@ only1 <- TRUE
 create_csv <- TRUE
 
 xgb_params <- list( 
-    eta = 0.1,
-    max_depth = 9, 
+    eta = 0.01,      # was .1
+    max_depth = 4,   # was 9
     subsample = 0.5,
     colsample_bytree = 0.5,
     eval_metric = "merror",
@@ -35,7 +35,7 @@ xgb_params <- list(
     num_class = 12,
     nthreads = 4
     )
-xgb_nrounds <- 53
+xgb_nrounds <- 360   #was 53
 ###
 
 # prep
@@ -113,8 +113,8 @@ if (i > 1) {
 ## eta=.1           1/5: Mean score = 0.826301                  (~8min) Mean score (full training set)= 0.837861
 ## add wday         1/5: Mean score = 0.825606      Mean score (full training set)= 0.839281
 
-## xgb:initial      1/5: Mean score = 0.849507      Mean score (full training set)= 0.880791
-## 
+## xgb:initial      1/5: Mean score = 0.849507      Mean score (full training set)= 0.880791  
+## nrnd=360, eta=.01 max_d=4; 1/5: Mean score = 0.847303      Mean score (full...)= 0.852272  Kaggle: 0.87311 
 stopifnot( create_csv )
 
 # cv <- xgb.cv(data = data.matrix(X[ ,-1]) , missing = NA
