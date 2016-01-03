@@ -122,7 +122,7 @@ if (i > 1) {
 ## nrnd=360, eta=.01 max_d=4; 1/5: Mean score = 0.847303      Mean score (full...)= 0.852272  Kaggle: 0.87311 
 ## max_d=6, gamma=.5, min_c=5; 1/5: Mean score = 0.848526     Mean score (full...)= 0.857748  Kaggle: 0.87394 
 ## nrnd=218                                                   Mean score (full...)= 0.855208  Kaggle: 0.87275
-## nrnd=360 + new features 
+## nrnd=360 + new features      Mean score (full training set)= 0.860487                      Kaggle: 0.87609 (#72)
 stopifnot( create_csv )
 
 # cv <- xgb.cv(data = data.matrix(X[ ,-1]) , missing = NA
