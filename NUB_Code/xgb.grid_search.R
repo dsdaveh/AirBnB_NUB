@@ -194,3 +194,47 @@ subfile <- sprintf("../submissions/submission_%s.csv", run_id)
 write.csv(submission, file=subfile , quote=FALSE, row.names = FALSE); tcheck( desc= subfile)
 # Kaggle = 0.86842  (versus 0.87204) so no improvement after all
 
+# let's look at the stop rounds again  
+cv <- xgb.cv(data = data.matrix(X[ ,-1]) #, missing = NA
+             , label = y
+             , params = xgb_params_2
+             , nrounds = 1000
+             , early.stop.round = 18  #change from 10
+             , nfold = 5
+)
+# 
+# # early.stop.round = 25
+# Stopping. Best iteration: 499
+# [498]	train-merror:0.308263+0.000438	test-merror:0.311566+0.003271
+# # early.stop.round = 18
+# Stopping. Best iteration: 360
+# [359]	train-merror:0.309973+0.001494	test-merror:0.313372+0.003625
+
+ggplot( cv, aes( x=1:nrow(cv), y=test.merror.mean)) + geom_line()
+
+#let's retrain with 360 rounds
+xgb <- xgboost(data = data.matrix(X[ ,-1]) #, missing = NA
+               , label = y[  ]
+               , params = xgb_params_2
+               , nrounds = 360  
+); tcheck()
+
+imp_mat <- xgb.importance( feature_names = colnames(X)[-1], model=xgb); tcheck()
+xgb.plot.importance(imp_mat)
+print(imp_mat)
+
+y_trn_pred <- predict(xgb, data.matrix(X[,-1])) #, missing = NA)
+y_trn_top5 <- as.data.frame( matrix( top5_preds( y_trn_pred ), ncol=5, byrow = TRUE)) %>% tbl_df
+y_trn_score <- score_predictions( y_trn_top5, labels)
+cat( sprintf( "Mean score (full training set)= %f\n", mean(y_trn_score)) ) ; tcheck()  #  0.851904
+# compare above to 0.842840 (SEE ABOVE) ... which implies no major improvement
+
+# Test
+y_pred <- predict(xgb, data.matrix(X_test[,-1])) #, missing = NA)
+y_top5 <- top5_preds( y_pred )
+submission <- data.frame( id= rep(X_test$id, each=5), country=y_top5)
+run_id <- format(Sys.time(), "xgb_grid_search_%Y_%m_%d_%H%M%S")
+subfile <- sprintf("../submissions/submission_%s.csv", run_id)
+write.csv(submission, file=subfile , quote=FALSE, row.names = FALSE); tcheck( desc= subfile)
+# 0.87282 ... You improved on your best score by 0.00077 ... I don't understand!
+
