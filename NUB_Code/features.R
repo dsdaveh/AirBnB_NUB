@@ -1,6 +1,6 @@
-library(dplyr)
 library(ggplot2)
 library(stringr)
+library(dplyr)
 
 if (! exists("users"))    load(file="../users.RData") # source('data_prep.R')
 if (! exists("sessions")) load(file="../sessions.RData") # source('data_prep.R')
