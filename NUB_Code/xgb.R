@@ -21,21 +21,23 @@ if ( exists("set_run_id") ) {
 }
 tcheck.print <- TRUE
 set.seed(1)
-kfold <- 5   #set to -1 to skip
+kfold <- -1   #set to -1 to skip
 only1 <- TRUE  
 create_csv <- TRUE
 
 xgb_params <- list( 
     eta = 0.01,      # was .1
-    max_depth = 4,   # was 9
+    max_depth = 6,   # was 4 # was 9
+    gamma = 0.5,     # new
+    min_child_weight = 5, #new
     subsample = 0.5,
-    colsample_bytree = 0.5,
+    colsample_bytree = 0.5, 
     eval_metric = "merror",
     objective = "multi:softprob",
     num_class = 12,
     nthreads = 4
     )
-xgb_nrounds <- 360   #was 53
+xgb_nrounds <- 360   #was 218
 ###
 
 # prep
@@ -53,10 +55,12 @@ X_test <- userf1 %>% filter( source == "test")
 X_test$country_destination <- NULL
 X_test$source <- NULL
 
-ix_shuffle <- sample( 1: nrow(X))
-ix_upper <- 0
-ix_inc <- ceiling( length(ix_shuffle) / kfold )
-ho_scores <- numeric(kfold)
+if (kfold > 0) {
+    ix_shuffle <- sample( 1: nrow(X))
+    ix_upper <- 0
+    ix_inc <- ceiling( length(ix_shuffle) / kfold )
+    ho_scores <- numeric(kfold)
+}
 
 top5_preds <- function (xgb_pred) {
     predictions <- as.data.frame(matrix(xgb_pred, nrow=12))
@@ -66,6 +70,7 @@ top5_preds <- function (xgb_pred) {
 
 tcheck( desc="begin kfold cross validation scores") ####
 for (i in 1:kfold) {
+    if (kfold < 0) break
     
     # split out a hold out set
     ix_lower <- ix_upper + 1
@@ -115,16 +120,19 @@ if (i > 1) {
 
 ## xgb:initial      1/5: Mean score = 0.849507      Mean score (full training set)= 0.880791  
 ## nrnd=360, eta=.01 max_d=4; 1/5: Mean score = 0.847303      Mean score (full...)= 0.852272  Kaggle: 0.87311 
+## max_d=6, gamma=.5, min_c=5; 1/5: Mean score = 0.848526     Mean score (full...)= 0.857748  Kaggle: 0.87394 
+## nrnd=218                                                   Mean score (full...)= 0.855208  Kaggle: 0.87275
+## nrnd=360 + new features 
 stopifnot( create_csv )
 
 # cv <- xgb.cv(data = data.matrix(X[ ,-1]) , missing = NA
 #                , label = y
 #                , params = xgb_params
-#                , nrounds = 200
-#                , early.stop.round = 10
+#                , nrounds = 1000
+#                , early.stop.round = 20
 #                , nfold = 10
 # )
-# Stopping. Best iteration: 53
+# # Stopping. Best iteration: 218
 
 #retrain on full X
 xgb <- xgboost(data = data.matrix(X[ ,-1]) , missing = NA
@@ -134,7 +142,7 @@ xgb <- xgboost(data = data.matrix(X[ ,-1]) , missing = NA
 )
 
 imp_mat <- xgb.importance( feature_names = colnames(X)[-1], model=xgb); tcheck()
-xgb.plot.importance(imp_mat)
+print(xgb.plot.importance(imp_mat))
 print(imp_mat)
 
 y_trn_pred <- predict(xgb, data.matrix(X[,-1]), missing = NA)
