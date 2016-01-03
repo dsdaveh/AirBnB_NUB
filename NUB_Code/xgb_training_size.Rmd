@@ -1,0 +1,104 @@
+---
+title: "xgb_train_size.Rmd"
+author: "Dave Hurst"
+date: "January 2, 2016"
+output: html_document
+---
+
+Looking to see how sensitive the current XGB model is to more data
+
+- use 20% of the data to determine score
+- check scores at 20,40,60,80 %
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# load libraries
+library(xgboost)
+library(stringr)
+library(magrittr)
+library(car)
+library(dplyr)
+library(lubridate)
+library(data.table)
+library(bit64)
+```
+```{r}
+source('nub_utils.R')
+load(file="../userf1.RData") # source('features.R')
+#userf1 <- sample_frac( userf1, .1)
+
+tcheck(0) ####
+### parameters
+
+tcheck.print <- FALSE
+set.seed(1)
+
+xgb_params <- list( 
+    eta = 0.1,      
+    max_depth = 9,  
+    subsample = 0.5,
+    colsample_bytree = 0.5,
+    eval_metric = "merror",
+    objective = "multi:softprob",
+    num_class = 12,
+    nthreads = 4,
+    silent = 1
+    )
+xgb_nrounds <- 53  
+###
+
+# prep
+tcheck( desc="begin data prep") ####
+
+# split train and test
+X <- userf1 %>% filter( source == "train")
+labels <- as.character( X$country_destination )
+X$country_destination <- NULL
+X$source <- NULL
+
+y <- recode(labels,"'NDF'=0; 'US'=1; 'other'=2; 'FR'=3; 'CA'=4; 'GB'=5; 'ES'=6; 'IT'=7; 'PT'=8; 'NL'=9; 'DE'=10; 'AU'=11")
+
+top5_preds <- function (xgb_pred) {
+    predictions <- as.data.frame(matrix(xgb_pred, nrow=12))
+    rownames(predictions) <- c('NDF','US','other','FR','CA','GB','ES','IT','PT','NL','DE','AU')
+    as.vector(apply(predictions, 2, function(x) names(sort(x)[12:8])))
+}
+
+# assign training into 5 random groups.  #5 will be the hold out
+id_grp <- data.frame( id = sample(1:nrow(X)), grp = rep(1:5, nrow(X))[1:nrow(X)] )
+idx_tst <- id_grp %>% filter( grp == 5 ) %>% extract2(1)
+
+tcheck( desc="begin  validation scores") ####
+idx_trn <- integer()
+ho_scores <- numeric()
+for (i in 1:4) {
+    
+    # train set
+    idx_trn <- c(idx_trn, id_grp %>% filter( grp == i ) %>% extract2(1) )
+    # train xgboost
+    xgb <- xgboost(data = data.matrix(X[idx_trn ,-1]) , missing = NA
+                   , label = y[idx_trn]
+                   , params = xgb_params
+                   , nrounds = xgb_nrounds  , verbose = FALSE
+    )
+
+    imp_mat <- xgb.importance( feature_names = colnames(X)[-1], model=xgb); tcheck()
+    print( xgb.plot.importance(imp_mat))
+
+    # predict values in hold out set
+    y_ho_pred <- predict(xgb, data.matrix(X[idx_tst,-1]), missing = NA)
+    y_ho_top5 <- as.data.frame( matrix( top5_preds( y_ho_pred ), ncol=5, byrow = TRUE)) %>% tbl_df
+    truth_ho <- labels[idx_tst]
+    y_ho_score <- score_predictions( y_ho_top5, truth_ho)
+    pred_eval <- y_ho_top5 %>% bind_cols( data.frame(truth_ho, y_ho_score))
+    
+    ho_scores[i] <- mean(y_ho_score)
+    cat( sprintf( "%d: Mean score = %f\n", i, ho_scores[i]) ) ; tcheck()
+    
+}
+plot( seq(20,80,20), ho_scores, type="b", xlab='Percent of Training')
+
+tcheck_df <- get_tcheck()
+print( tcheck_df )
+print( sum(tcheck_df$delta))
+```
+
