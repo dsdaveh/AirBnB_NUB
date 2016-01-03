@@ -38,7 +38,7 @@ score_predictions <- function(preds, truth) {
 
 
 # Read in training data for more benchmarks
-train <- read.csv('../input/train_users.csv')
+train <- read.csv('../input/train_users_2.csv')
 
 # All NDF  -- compare to submission script of 0.67909
 cat ("Full Dataset scores:\n")

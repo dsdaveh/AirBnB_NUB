@@ -1,0 +1,88 @@
+---
+title: "Study Time Effects in Data"
+author: "Dave Hurst"
+date: "January 3, 2016"
+output: 
+    html_document:
+        pandoc_args: [
+          "+RTS", "-K64m", 
+          "-RTS"
+        ]
+---
+
+Inspired by a Kaggle Script I wrote: [Z-scores for LB benchmarks vs traininig](https://www.kaggle.com/datadave/airbnb-recruiting-new-user-bookings/z-scores-for-lb-benchmarks-vs-traininig) that converts 2 leader board (LB) benchmarks into Z-scores relative to their equivalent scores in the training data.  The Z-score for both benchmarks was ~80, implying the test data is significantly different than the training data.  
+
+This script examines the hypothesis that user behavior is changing rapidly over time, and training on the latest (smaller subset) of data may be more efficient that using the entire dataset.
+
+## Method 
+
+* Segment the test data into segments (say, quarterly) and establish the mean/std dev
+* Score the Public LB benchmarks for each quarter and plot
+
+If the plot shows a decreasing Z-score, it would indicate we might want to throw out the older data.  If that's true the next step would be to figure out how recently to look, but I won't tackle that here.
+
+
+```{r init, cache=TRUE}
+#Load libraries, helper functions and data
+library(ggplot2)
+library(lubridate)
+library(readr)
+
+dcg_at_k <- function (r, k=min(5, length(r)) ) {
+    #only coded alternative formulation of DCG (used by kaggle)
+    r <- as.vector(r)[1:k]
+    sum(( 2^r - 1 )/ log2( 2:(length(r)+1)) )
+} 
+
+ndcg_at_k <- function(r, k=min(5, length(r)) ) {
+    r <- as.vector(r)[1:k]
+    if (sum(r) <= 0) return (0)     # no hits (dcg_max = 0)
+    dcg_max = dcg_at_k(sort(r, decreasing=TRUE)[1:k], k)
+    return ( dcg_at_k(r, k) / dcg_max )
+}
+
+score_predictions <- function(preds, truth) {
+    # preds: matrix or data.frame
+    # one row for each observation, one column for each prediction.
+    # Columns are sorted from left to right descending in order of likelihood.
+    # truth: vector
+    # one row for each observation.
+    preds <- as.matrix(preds)
+    truth <- as.vector(truth)
+    
+    stopifnot( length(truth) == nrow(preds))
+    r <- apply( cbind( truth, preds), 1
+                , function(x) ifelse( x == x[1], 1, 0))[ -1, ]
+    if ( ncol(preds) == 1) r <-  rbind( r, r)  #workaround for 1d matrices
+    as.vector( apply(r, 2, ndcg_at_k) )
+}
+# 
+
+
+# Read in training data for more benchmarks
+train <- read.csv('../input/train_users_2.csv')
+
+trn_ndf <- score_predictions( rep("NDF", nrow(train)), train$country_destination )
+
+# Global probabilities
+top5 <- sort( table(train$country_destination) , decreasing = TRUE)[1:5]
+trn_top5 <- score_predictions( matrix( rep(names(top5), nrow(train)), ncol=5, byrow=TRUE)
+                            ,  train$country_destination)
+
+LB_ndf <- 0.67909
+LB_top5 <- 0.85359
+
+```
+
+Benchmarks:
+- B1 - All Values are NDF.  
+-- Public LB Score = `r LB_ndf`  
+-- Full Training Set Score = `r trn_ndf`
+- B2 - Top 5 ranked destinations for all trainig data: (NDF, US, other, FR, IT, GB).  
+-- Public LB Score = `r LB_top5`
+-- Full Training Set Score = `r trn_top5`
+
+```{r}
+train <- train %>% mutate
+```
+
