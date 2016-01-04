@@ -4,29 +4,27 @@ author: "Dave Hurst"
 date: "January 3, 2016"
 output: 
     html_document:
-        pandoc_args: [
-          "+RTS", "-K64m", 
-          "-RTS"
-        ]
+        pandoc_args: [ "+RTS", "-K64m",  "-RTS" ]
 ---
 
 Inspired by a Kaggle Script I wrote: [Z-scores for LB benchmarks vs traininig](https://www.kaggle.com/datadave/airbnb-recruiting-new-user-bookings/z-scores-for-lb-benchmarks-vs-traininig) that converts 2 leader board (LB) benchmarks into Z-scores relative to their equivalent scores in the training data.  The Z-score for both benchmarks was ~80, implying the test data is significantly different than the training data.  
 
 This script examines the hypothesis that user behavior is changing rapidly over time, and training on the latest (smaller subset) of data may be more efficient that using the entire dataset.
 
-## Method 
+### Method 
 
-* Segment the test data into segments (say, quarterly) and establish the mean/std dev
+* Segment the test data into segments (say, quarterly) and establish the mean/std dev for each quarter
 * Score the Public LB benchmarks for each quarter and plot
 
 If the plot shows a decreasing Z-score, it would indicate we might want to throw out the older data.  If that's true the next step would be to figure out how recently to look, but I won't tackle that here.
 
 
-```{r init, cache=TRUE}
+```{r init, echo=FALSE, warning=FALSE, message=FALSE}
 #Load libraries, helper functions and data
 library(ggplot2)
 library(lubridate)
 library(readr)
+library(dplyr)
 
 dcg_at_k <- function (r, k=min(5, length(r)) ) {
     #only coded alternative formulation of DCG (used by kaggle)
@@ -35,6 +33,7 @@ dcg_at_k <- function (r, k=min(5, length(r)) ) {
 } 
 
 ndcg_at_k <- function(r, k=min(5, length(r)) ) {
+    #normalized dcg
     r <- as.vector(r)[1:k]
     if (sum(r) <= 0) return (0)     # no hits (dcg_max = 0)
     dcg_max = dcg_at_k(sort(r, decreasing=TRUE)[1:k], k)
@@ -56,33 +55,122 @@ score_predictions <- function(preds, truth) {
     if ( ncol(preds) == 1) r <-  rbind( r, r)  #workaround for 1d matrices
     as.vector( apply(r, 2, ndcg_at_k) )
 }
-# 
 
+top5 <- NULL
+ncdg_calc <- function ( trn, method = "NDF" ) {
+    # calculates ncdg for a training data frame
+    # top5 is initially set to null in the global env
+    if (length(top5) < 1 ) top5 <<- sort( 
+        table(train$country_destination) , decreasing = TRUE)[1:5]
+    if ( method == "top5" ) {
+        score <- mean( 
+            score_predictions( 
+                matrix( rep(names(top5), nrow(trn)), ncol=5, byrow=TRUE),
+                    trn$country_destination))
+
+    } else {
+        score = mean( score_predictions( rep("NDF", nrow(trn)), trn$country_destination ) )
+    }
+    return( score )
+}
+
+ncdg_stats <- function ( trn, method = "NDF", frac = 0.1, n = 10 ) {
+    # samples a data frame to determine mean and sd of ndcg
+    scores <- numeric()
+    for ( i in 1:n) {
+        tsub <- sample_frac( trn, size = frac )
+        scores[i] <- ncdg_calc( tsub, method)
+    }
+    return ( data.frame( mean = mean(scores), sd = sd(scores) ))
+}
+
+# wrote this to prevent dup calculations but did not use it here
+last_trn <- NULL
+last_stats <- NULL
+last_args <- NULL
+get_stat <- function( trn, method = "NDF", stat = "mean", ...   ) {
+    print(trn$qtr[1])
+    args <- as.list( match.call() )
+    args$stat <- NULL
+    stat_idx <- grep( stat, c("mean", "sd"))
+    if (stat_idx < 1) stop( "invalid 'stat' value [mean|sd]")
+    if (! (identical( last_trn, trn )
+        &  identical( last_args, args)) ) {
+        last_trn <<- trn
+        last_stats <<- ncdg_stats( trn, method, ... )
+        last_args <<- args
+    }
+    return( last_stats[1, stat])
+}
+
+# 
+```
+```{r full_scores, cache=TRUE}
 
 # Read in training data for more benchmarks
-train <- read.csv('../input/train_users_2.csv')
+train <- read_csv('../input/train_users_2.csv')
 
-trn_ndf <- score_predictions( rep("NDF", nrow(train)), train$country_destination )
-
-# Global probabilities
-top5 <- sort( table(train$country_destination) , decreasing = TRUE)[1:5]
-trn_top5 <- score_predictions( matrix( rep(names(top5), nrow(train)), ncol=5, byrow=TRUE)
-                            ,  train$country_destination)
+trn_ndf <- ncdg_calc( train, method = "NDF")
+trn_top5 <- ncdg_calc( train, method = "top5")
 
 LB_ndf <- 0.67909
 LB_top5 <- 0.85359
 
 ```
 
-Benchmarks:
-- B1 - All Values are NDF.  
--- Public LB Score = `r LB_ndf`  
--- Full Training Set Score = `r trn_ndf`
-- B2 - Top 5 ranked destinations for all trainig data: (NDF, US, other, FR, IT, GB).  
--- Public LB Score = `r LB_top5`
--- Full Training Set Score = `r trn_top5`
+Benchmarks:  
+
+* B1 - All Values are NDF.  
+    + Public LB Score = `r LB_ndf`  
+    + Full Training Set Score = `r trn_ndf`  
+* B2 - Top 5 ranked destinations for all trainig data: (NDF, US, other, FR, IT, GB).  
+    + Public LB Score = `r LB_top5`  
+    +  Full Training Set Score = `r trn_top5`  
+
+```{r qtr_stats}
+train <- train %>% 
+    mutate ( qtr = quarter( date_account_created, with_year = TRUE )) 
+z_qtr <- data.frame()
+for ( iqtr in unique( train$qtr ) ) {
+    z_qtr <- rbind( z_qtr, 
+                    cbind( QTR = iqtr, method = "NDF",
+                           ncdg_stats( filter( train, qtr == iqtr ), n=10, method="NDF") ) ,
+                    cbind( QTR = iqtr, method = "top5",
+                           ncdg_stats( filter( train, qtr == iqtr ), n=10, method="top5") ) )
+}
+
+#calc Z-score and transfor Qtr so it plots better on the X-axis
+z_qtr <- z_qtr %>% mutate(
+    Z_score = ifelse( method == "top5", 
+                      ( LB_top5 - mean )/ sd ,
+                      ( LB_ndf - mean )/ sd ), 
+    Qtr = floor(QTR) + ( 2.5 * (QTR - floor(QTR)) - .125 ) )
+
+```
+
+Here's a plot of the benchmark scores for each quarter.  We see each benchmarks mean score is improving over time.  Probably because of a growing proportion of NDF's
+
+```{r mean_plot, message=FALSE}
+z_qtr %>% ggplot( aes( x=Qtr, y=mean, col=method)) + 
+    geom_line() +
+    geom_smooth( size=2)
+```
+
+Here's a plot of the Z-score, which is fundamentally measuring how close the training data matches test data.  Anything above 2 is very high, but we can see the Z-scores both benchmarks decreasing over time.  I interpret that as confirmation that the data is changing over time, and the newer data is a better match for the test data.  This implies there is a trade off of using the older data -- it will give more observations, but may also introduce bias into the model.
+
+```{r zscore, message=FALSE}
+z_qtr %>% ggplot( aes( x=Qtr, y=Z_score, col=method)) + 
+    geom_line() +
+    geom_smooth( size=2)
+```
+
+### Functions used in the doc
 
 ```{r}
-train <- train %>% mutate
+dcg_at_k
+ndcg_at_k
+score_predictions
+ncdg_calc
+ncdg_stats
 ```
 
