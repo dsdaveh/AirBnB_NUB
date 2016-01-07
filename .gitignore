@@ -54,3 +54,5 @@ NUB_Code/.Rproj.user/*
 .Rproj.user
 *.csv
 *.html
+submissions/*
+study_data_time_effects_*

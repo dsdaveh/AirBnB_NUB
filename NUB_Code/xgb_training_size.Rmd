@@ -20,11 +20,12 @@ library(dplyr)
 library(lubridate)
 library(data.table)
 library(bit64)
+library(ggplot2)
 ```
 ```{r}
 source('nub_utils.R')
 load(file="../userf1.RData") # source('features.R')
-#userf1 <- sample_frac( userf1, .1)
+#userf1 <- sample_frac( userf1, .1)  #speed up for dev
 
 tcheck(0) ####
 ### parameters
@@ -63,39 +64,52 @@ top5_preds <- function (xgb_pred) {
     as.vector(apply(predictions, 2, function(x) names(sort(x)[12:8])))
 }
 
-# assign training into 5 random groups.  #5 will be the hold out
-id_grp <- data.frame( id = sample(1:nrow(X)), grp = rep(1:5, nrow(X))[1:nrow(X)] )
-idx_tst <- id_grp %>% filter( grp == 5 ) %>% extract2(1)
-
-tcheck( desc="begin  validation scores") ####
-idx_trn <- integer()
-ho_scores <- numeric()
-for (i in 1:4) {
+#keep 20% for validation
+set.seed(168)
+ho_scores <- data.frame()
+n_grp <- 10  # this is how many increments we'll use for the train data
+for (iseed in 1:3) {
+    cat("iteration ", iseed, "\n")
+    idx_tst <- sample( 1:nrow(X), round( .2 * nrow(X)) ) 
     
-    # train set
-    idx_trn <- c(idx_trn, id_grp %>% filter( grp == i ) %>% extract2(1) )
-    # train xgboost
-    xgb <- xgboost(data = data.matrix(X[idx_trn ,-1]) , missing = NA
-                   , label = y[idx_trn]
-                   , params = xgb_params
-                   , nrounds = xgb_nrounds  , verbose = FALSE
-    )
-
-    imp_mat <- xgb.importance( feature_names = colnames(X)[-1], model=xgb); tcheck()
-    print( xgb.plot.importance(imp_mat))
-
-    # predict values in hold out set
-    y_ho_pred <- predict(xgb, data.matrix(X[idx_tst,-1]), missing = NA)
-    y_ho_top5 <- as.data.frame( matrix( top5_preds( y_ho_pred ), ncol=5, byrow = TRUE)) %>% tbl_df
-    truth_ho <- labels[idx_tst]
-    y_ho_score <- score_predictions( y_ho_top5, truth_ho)
-    pred_eval <- y_ho_top5 %>% bind_cols( data.frame(truth_ho, y_ho_score))
+    # assign remaining training into  random groups.  
+    grp_ids <- (1:nrow(X))[-idx_tst]
+    id_grp <- data.frame( ix = grp_ids,
+                          grp = rep(1:n_grp, nrow(X))[1:(length(grp_ids))] )
     
-    ho_scores[i] <- mean(y_ho_score)
-    cat( sprintf( "%d: Mean score = %f\n", i, ho_scores[i]) ) ; tcheck()
-    
+    tcheck( desc="begin  validation scores") ####
+    idx_trn <- integer()
+    for (i in 1:n_grp) {
+        
+        # train set
+        idx_trn <- c(idx_trn, id_grp %>% filter( grp == i ) %>% extract2(1) )
+        # train xgboost
+        xgb <- xgboost(data = data.matrix(X[idx_trn ,-1]) , missing = NA
+                       , label = y[idx_trn]
+                       , params = xgb_params
+                       , nrounds = xgb_nrounds  , verbose = FALSE
+        )
+        
+        #     imp_mat <- xgb.importance( feature_names = colnames(X)[-1], model=xgb); tcheck()
+        #     print( xgb.plot.importance(imp_mat))
+        
+        # predict values in hold out set
+        y_ho_pred <- predict(xgb, data.matrix(X[idx_tst,-1]), missing = NA)
+        y_ho_top5 <- as.data.frame( matrix( top5_preds( y_ho_pred ), ncol=5, byrow = TRUE)) %>% tbl_df
+        truth_ho <- labels[idx_tst]
+        y_ho_score <- score_predictions( y_ho_top5, truth_ho)
+        pred_eval <- y_ho_top5 %>% bind_cols( data.frame(truth_ho, y_ho_score))
+        
+        ho_scores <- rbind( ho_scores,
+                            data.frame( seed = iseed, grp = i, score = mean(y_ho_score) ))
+        cat( sprintf( "%d: Mean score = %f\n", i, mean(y_ho_score)) ) ; tcheck()
+        
+    }
 }
-plot( seq(20,80,20), ho_scores, type="b", xlab='Percent of Training')
+ho_scores %>% ggplot( aes( x=grp/n_grp, y=score)) +
+    geom_line( aes( col= as.factor(seed) )) +
+    geom_smooth( size=2 )
+#plot( 1:n_grp/n_grp, ho_scores, type="b", xlab='Percent of Training')
 
 tcheck_df <- get_tcheck()
 print( tcheck_df )
