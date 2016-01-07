@@ -24,7 +24,15 @@ set.seed(1)
 kfold <- -1   #set to -1 to skip
 only1 <- TRUE  
 create_csv <- TRUE
-
+ndcg_mean <- function(preds, dtrain) {
+    truth <- getinfo(dtrain, "label")
+    pred12 <- matrix( preds, nrow=12) 
+    pred5 <- apply(pred12, 2, order)[12:8,] %>% t() -1
+    score <- apply(pred5, 2, function(x) as.integer( x == truth ))
+    
+    ndcg <- apply(score, 1, ndcg_at_k )
+    return(list(metric = "mean-ndcg", value = mean(ndcg)))
+}
 xgb_params <- list( 
     eta = 0.01,      # was .1
     max_depth = 6,   # was 4 # was 9
@@ -32,14 +40,14 @@ xgb_params <- list(
     min_child_weight = 5, #new
     subsample = 0.5,
     colsample_bytree = 0.5, 
-    eval_metric = "merror",
+    eval_metric = "ndcg",
     objective = "multi:softprob",
     num_class = 12,
     nthreads = 4,
-    feval = ndcg,
-    maximize = TRUE
+    maximize = TRUE,
+    verbose = TRUE
     )
-xgb_nrounds <- 360   #was 218
+xgb_nrounds <- 281   #was 218
 ###
 
 # prep
@@ -126,37 +134,33 @@ if (i > 1) {
 ## max_d=6, gamma=.5, min_c=5; 1/5: Mean score = 0.848526     Mean score (full...)= 0.857748  Kaggle: 0.87394 
 ## nrnd=218                                                   Mean score (full...)= 0.855208  Kaggle: 0.87275
 ## nrnd=360 + new features      Mean score (full training set)= 0.860487                      Kaggle: 0.87609 (#72)
+## feval = ndcg(custom) eval_metric=merror (not sure what was used)  Mean score (full... = 0.860403 )
+## eval_metric="ndcg" (no feval)                                     Mean score (full... = 0.860403
+## nrnd=281                                     ...full ts = 0.859302  Kaggle=0.87569,
+
 stopifnot( create_csv )
 
 dtrain <- xgb.DMatrix(data.matrix(X[ ,-1]), label = y, missing = NA)
-ndcg <- function(preds, dtrain) {
-    truth <- getinfo(dtrain, "label")
-    pred12 <- matrix( preds, nrow=12) 
-    pred5 <- apply(pred12, 2, order)[12:8,] %>% t() -1
-    score <- apply(pred5, 2, function(x) as.integer( x == truth ))
-    
-    ndcg <- apply(score, 1, ndcg_at_k )
-    return(list(metric = "mean-ndcg", value = mean(ndcg)))
-}
 
-cv <- xgb.cv(data = data.matrix(X[ ,-1]) , missing = NA
-               , label = y
-               , params = xgb_params
-               , nrounds = 1000
-               , early.stop.round = 15
-               , nfold = 5
-               , feval = ndcg
-               , maximize = TRUE
-)
-# Stopping. Best iteration: 218
+
+# cv <- xgb.cv(data = data.matrix(X[ ,-1]) , missing = NA
+#                , label = y
+#                , params = xgb_params
+#                , nrounds = 1000
+#                , early.stop.round = 15
+#                , nfold = 5
+#                , feval = ndcg
+#                , maximize = TRUE
+# )
+# Stopping. Best iteration: 281
 
 #retrain on full X
-xgb <- xgboost(data = data.matrix(X[ ,-1]) , missing = NA
-               , label = y
-               , params = xgb_params
-               , nrounds = xgb_nrounds  
-               , feval = ndcg
-)
+# xgb <- xgboost(data = data.matrix(X[ ,-1]) , missing = NA
+#                , label = y
+#                , params = xgb_params
+#                , nrounds = xgb_nrounds  
+#                , feval = ndcg
+# )
 
 xgb <- xgb.train(dtrain , missing = NA
                , label = y
@@ -164,9 +168,9 @@ xgb <- xgb.train(dtrain , missing = NA
                , nrounds = xgb_nrounds  
 )
 
-imp_mat <- xgb.importance( feature_names = colnames(X)[-1], model=xgb); tcheck()
-print(xgb.plot.importance(imp_mat))
-print(imp_mat)
+# imp_mat <- xgb.importance( feature_names = colnames(X)[-1], model=xgb); tcheck()
+# print(xgb.plot.importance(imp_mat))
+# print(imp_mat)
 
 y_trn_pred <- predict(xgb, data.matrix(X[,-1]), missing = NA)
 y_trn_top5 <- as.data.frame( matrix( top5_preds( y_trn_pred ), ncol=5, byrow = TRUE)) %>% tbl_df
