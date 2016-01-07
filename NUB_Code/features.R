@@ -24,10 +24,16 @@ count_occurance <- function(x, str) length( grep(str, x))
 first_occurance <- function(x, str) grep(str,x)[1]
 
 ses_agg <- sessions %>% group_by( id ) %>%
+    mutate( e_12hr = secs_elapsed > 12*3600, 
+            e_30hr = secs_elapsed > 30*3600,
+            e_6d  = secs_elapsed > 6*24*3600) %>%
     summarise(
         e0 = first(secs_elapsed),
         e_total = sum(secs_elapsed, na.rm=TRUE),
         e_max = max(secs_elapsed, na.rm=TRUE),
+        e_n12hr = sum( e_12hr, na.rm=TRUE ),
+        e_n30hr = sum( e_12hr, na.rm=TRUE ),
+        e_n6d = sum( e_12hr, na.rm=TRUE ),
         nrec = n(),
         n_actions = n_distinct(action),
         n_act_type = n_distinct(action_type),
