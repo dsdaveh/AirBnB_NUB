@@ -139,7 +139,8 @@ if (i > 1) {
 ## nrnd=281                                     ...full ts = 0.859302  Kaggle=0.87569,
 ## *1    return  (verified full = 0.860403 )
 ## add fea: e_n12hr      (full training set)= 0.860451    Kaggle=	0.87650  (+1 -> #89)
-
+## add fea: e_n30hr, e_n6d (full training set)= 0.860660  Kaggle=   0.87582
+ 
 stopifnot( create_csv )
 
 dtrain <- xgb.DMatrix(data.matrix(X[ ,-1]), label = y, missing = NA)
