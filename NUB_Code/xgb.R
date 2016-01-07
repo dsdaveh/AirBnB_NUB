@@ -40,14 +40,14 @@ xgb_params <- list(
     min_child_weight = 5, #new
     subsample = 0.5,
     colsample_bytree = 0.5, 
-    eval_metric = "ndcg",
+    eval_metric = "merror",
     objective = "multi:softprob",
     num_class = 12,
-    nthreads = 4,
-    maximize = TRUE,
-    verbose = TRUE
+    nthreads = 4
+#     maximize = TRUE,
+#     verbose = TRUE
     )
-xgb_nrounds <- 281   #was 218
+xgb_nrounds <- 360   
 ###
 
 # prep
@@ -133,10 +133,12 @@ if (i > 1) {
 ## nrnd=360, eta=.01 max_d=4; 1/5: Mean score = 0.847303      Mean score (full...)= 0.852272  Kaggle: 0.87311 
 ## max_d=6, gamma=.5, min_c=5; 1/5: Mean score = 0.848526     Mean score (full...)= 0.857748  Kaggle: 0.87394 
 ## nrnd=218                                                   Mean score (full...)= 0.855208  Kaggle: 0.87275
-## nrnd=360 + new features      Mean score (full training set)= 0.860487                      Kaggle: 0.87609 (#72)
+## *1 nrnd=360 + new features      Mean score (full training set)= 0.860487                      Kaggle: 0.87609 (#72)
 ## feval = ndcg(custom) eval_metric=merror (not sure what was used)  Mean score (full... = 0.860403 )
 ## eval_metric="ndcg" (no feval)                                     Mean score (full... = 0.860403
 ## nrnd=281                                     ...full ts = 0.859302  Kaggle=0.87569,
+## *1    return  (verified full = 0.860403 )
+## add fea: e_n12hr      (full training set)= 0.860451    Kaggle=	0.87650  (+1 -> #89)
 
 stopifnot( create_csv )
 
