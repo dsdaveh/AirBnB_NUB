@@ -35,7 +35,9 @@ xgb_params <- list(
     eval_metric = "merror",
     objective = "multi:softprob",
     num_class = 12,
-    nthreads = 4
+    nthreads = 4,
+    feval = ndcg,
+    maximize = TRUE
     )
 xgb_nrounds <- 360   #was 218
 ###
@@ -49,7 +51,8 @@ labels <- as.character( X$country_destination )
 X$country_destination <- NULL
 X$source <- NULL
 
-y <- recode(labels,"'NDF'=0; 'US'=1; 'other'=2; 'FR'=3; 'CA'=4; 'GB'=5; 'ES'=6; 'IT'=7; 'PT'=8; 'NL'=9; 'DE'=10; 'AU'=11")
+#userf1 %>% filter( source=='train') %>% group_by(country_destination) %>% summarize( n=n()) %>% ungroup %>% arrange(desc(n))
+y <- recode(labels,"'NDF'=0; 'US'=1; 'other'=2; 'FR'=3; 'IT'=4; 'GB'=5; 'ES'=6; 'CA'=7; 'DE'=8; 'NL'=9; 'AU'=10; 'PT'=11")
 
 X_test <- userf1 %>% filter( source == "test")
 X_test$country_destination <- NULL
@@ -64,7 +67,7 @@ if (kfold > 0) {
 
 top5_preds <- function (xgb_pred) {
     predictions <- as.data.frame(matrix(xgb_pred, nrow=12))
-    rownames(predictions) <- c('NDF','US','other','FR','CA','GB','ES','IT','PT','NL','DE','AU')
+    rownames(predictions) <- c('NDF','US','other','FR','IT','GB','ES','CA','DE','NL','AU','PT')
     as.vector(apply(predictions, 2, function(x) names(sort(x)[12:8])))
 }
 
@@ -125,17 +128,37 @@ if (i > 1) {
 ## nrnd=360 + new features      Mean score (full training set)= 0.860487                      Kaggle: 0.87609 (#72)
 stopifnot( create_csv )
 
-# cv <- xgb.cv(data = data.matrix(X[ ,-1]) , missing = NA
-#                , label = y
-#                , params = xgb_params
-#                , nrounds = 1000
-#                , early.stop.round = 20
-#                , nfold = 10
-# )
-# # Stopping. Best iteration: 218
+dtrain <- xgb.DMatrix(data.matrix(X[ ,-1]), label = y, missing = NA)
+ndcg <- function(preds, dtrain) {
+    truth <- getinfo(dtrain, "label")
+    pred12 <- matrix( preds, nrow=12) 
+    pred5 <- apply(pred12, 2, order)[12:8,] %>% t() -1
+    score <- apply(pred5, 2, function(x) as.integer( x == truth ))
+    
+    ndcg <- apply(score, 1, ndcg_at_k )
+    return(list(metric = "mean-ndcg", value = mean(ndcg)))
+}
+
+cv <- xgb.cv(data = data.matrix(X[ ,-1]) , missing = NA
+               , label = y
+               , params = xgb_params
+               , nrounds = 1000
+               , early.stop.round = 15
+               , nfold = 5
+               , feval = ndcg
+               , maximize = TRUE
+)
+# Stopping. Best iteration: 218
 
 #retrain on full X
 xgb <- xgboost(data = data.matrix(X[ ,-1]) , missing = NA
+               , label = y
+               , params = xgb_params
+               , nrounds = xgb_nrounds  
+               , feval = ndcg
+)
+
+xgb <- xgb.train(dtrain , missing = NA
                , label = y
                , params = xgb_params
                , nrounds = xgb_nrounds  
