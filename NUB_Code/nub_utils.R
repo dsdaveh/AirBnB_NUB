@@ -33,27 +33,27 @@ score_predictions <- function(preds, truth) {
     if ( ncol(preds) == 1) r <-  rbind( r, r)  #workaround for 1d matrices
     as.vector( apply(r, 2, ndcg_at_k) )
 }
-# 
-# cat ('Examples from NDCG example\n')
-# print(ndcg_at_k(c(0)))
-# print(ndcg_at_k(c(1)))
-# print(ndcg_at_k(c(1,0)))
-# print(ndcg_at_k(c(0,1)))
-# print(ndcg_at_k(c(0,1,1)))
-# print(ndcg_at_k(c(0,1,1,1)))
-# 
-# cat ('\nExamples from Score predictions using NDCG\n')
-# preds <- matrix( c('US', 'FR', 'FR', 'US', 'FR', 'FR'), nrow=3, byrow= TRUE) 
-# truth <- c('US','US','FR')
-# cat("preds\n")
-# print(as.data.frame(preds))
-# score <- score_predictions( preds, truth)
-# print(data.frame( truth=truth, score=score ))
-# 
-# #Assuming final score is a mean based on this from Wikipedia:
-# # The nDCG values for all queries can be averaged to obtain a measure
-# # of the average performance of a search engine's ranking algorithm.
-# cat('mean score = ', mean(score), '\n')
+
+replace_na <- function( df, verbose=FALSE ) {
+    colClasses <- lapply(df, class) %>% unlist()
+    #Add NA as a level to the appropriate factor variables 
+    for ( ix in which(colClasses == "factor")) {
+        if ( any( is.na(df[ ,ix]))) {
+            levels(df[ ,ix][[1]]) <- c(levels(df[ ,ix][[1]]), "NA")
+        }
+    }
+    
+    for (icol in 1:ncol(df)) {
+        na_idx <- which( is.na( df[, icol] ))
+        if ( length(na_idx) <= 1 ) next
+        if (verbose) cat("...replacing Col ",icol,": ", length(na_idx), "NAs\n")
+        if ( colClasses[icol] == "integer") df[ na_idx, icol] <- -99
+        if ( colClasses[icol] == "numeric") df[ na_idx, icol] <- -99
+        if ( colClasses[icol] == "factor") df[ na_idx, icol] <- "NA"
+    }
+    return(df)
+}
+
 
 if (! exists("tcheck.print")) tcheck.print = FALSE
 if (! exists("tcheck.df")) tcheck.df <- data.frame( stringsAsFactors = FALSE)
