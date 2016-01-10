@@ -46,7 +46,7 @@ xgb_params <- list(
     nthreads = 4,
     maximize = TRUE
     )
-xgb_nrounds <- 360   
+xgb_nrounds <- 334 # was 360   
 ###
 
 # prep
