@@ -21,7 +21,7 @@ if ( exists("set_run_id") ) {
 }
 tcheck.print <- TRUE
 set.seed(1)
-kfold <- 5   #set to -1 to skip
+kfold <- -1   #set to -1 to skip
 only1 <- FALSE  
 create_csv <- TRUE
 ndcg_mean <- function(preds, dtrain) {
@@ -141,7 +141,7 @@ if (i > 1) {
 ## add fea: e_n12hr      (full training set)= 0.860451                        Kaggle=	0.87650  (+1 -> #89)
 ## add fea: e_n30hr, e_n6d (full training set)= 0.860660                      Kaggle=   0.87582
 ## eval="ncdg@5" 5-fold summary: Mean = 0.852913, sd = 0.001647  full=0.860352  Kaggle: 0.87593
-
+## n=334                                                         full=0.860222  
  
 stopifnot( create_csv )
 
@@ -181,6 +181,9 @@ y_trn_pred <- predict(xgb, data.matrix(X[,-1]), missing = NA)
 y_trn_top5 <- as.data.frame( matrix( top5_preds( y_trn_pred ), ncol=5, byrow = TRUE)) %>% tbl_df
 y_trn_score <- score_predictions( y_trn_top5, labels)
 cat( sprintf( "Mean score (full training set)= %f\n", mean(y_trn_score)) ) ; tcheck()  
+trn_csv <- sprintf("../submissions/train_pred_%s.csv", run_id)
+trn_pred <- data.frame( id= rep(X$id, each=5), country=top5_preds(y_trn_pred) )
+write.csv(trn_pred, file=trn_csv , quote=FALSE, row.names = FALSE); tcheck( desc= trn_csv)
 
 # Test
 y_pred <- predict(xgb, data.matrix(X_test[,-1]), missing = NA)
