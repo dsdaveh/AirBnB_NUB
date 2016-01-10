@@ -21,8 +21,8 @@ if ( exists("set_run_id") ) {
 }
 tcheck.print <- TRUE
 set.seed(1)
-kfold <- -1   #set to -1 to skip
-only1 <- TRUE  
+kfold <- 5   #set to -1 to skip
+only1 <- FALSE  
 create_csv <- TRUE
 ndcg_mean <- function(preds, dtrain) {
     truth <- getinfo(dtrain, "label")
@@ -40,12 +40,11 @@ xgb_params <- list(
     min_child_weight = 5, #new
     subsample = 0.5,
     colsample_bytree = 0.5, 
-    eval_metric = "merror",
+    eval_metric = "ndcg@5",
     objective = "multi:softprob",
     num_class = 12,
-    nthreads = 4
-#     maximize = TRUE,
-#     verbose = TRUE
+    nthreads = 4,
+    maximize = TRUE
     )
 xgb_nrounds <- 360   
 ###
@@ -89,10 +88,11 @@ for (i in 1:kfold) {
     iho <- ix_shuffle[ix_lower:ix_upper]
 
     # train xgboost
-    xgb <- xgboost(data = data.matrix(X[-iho ,-1]) , missing = NA
-                   , label = y[-iho]
-                   , params = xgb_params
-                   , nrounds = xgb_nrounds  
+    dtrain <- xgb.DMatrix(data.matrix(X[ -iho ,-1]), label = y[-iho], missing = NA)
+    xgb <- xgb.train(dtrain
+                     , label = y[-iho]
+                     , params = xgb_params
+                     , nrounds = xgb_nrounds  
     )
 
     # predict values in hold out set
@@ -113,7 +113,7 @@ if (i > 1) {
     # [1] "303.310000 elapsed from K-f cross validation:t=3" (Brazil)
     
     cat( sprintf( "%d-fold summary: Mean = %f, sd = %f", 
-                  mean(ho_scores), sd(ho_scores)))
+                  kfold, mean(ho_scores), sd(ho_scores)))
 }  
 
 ## 80% 1fold validation run records:
@@ -138,8 +138,10 @@ if (i > 1) {
 ## eval_metric="ndcg" (no feval)                                     Mean score (full... = 0.860403
 ## nrnd=281                                     ...full ts = 0.859302  Kaggle=0.87569,
 ## *1    return  (verified full = 0.860403 )
-## add fea: e_n12hr      (full training set)= 0.860451    Kaggle=	0.87650  (+1 -> #89)
-## add fea: e_n30hr, e_n6d (full training set)= 0.860660  Kaggle=   0.87582
+## add fea: e_n12hr      (full training set)= 0.860451                        Kaggle=	0.87650  (+1 -> #89)
+## add fea: e_n30hr, e_n6d (full training set)= 0.860660                      Kaggle=   0.87582
+## eval="ncdg@5" 5-fold summary: Mean = 0.852913, sd = 0.001647  full=0.860352  Kaggle: 0.87593
+
  
 stopifnot( create_csv )
 
