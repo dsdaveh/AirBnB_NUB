@@ -71,7 +71,6 @@ ses_agg <- sessions %>% group_by( id ) %>%
 ses_agg[ is.na(ses_agg$lne0), 'lne0' ] <- -999  # separate these for NA's from join   
 userf1 <- userf1 %>% left_join( ses_agg, by='id') 
 
-save(userf1, file='../userf1.RData')
 
 # EDA and verification used along the way
 
@@ -113,4 +112,5 @@ userf1 <- userf1 %>%
     left_join( age_agg, by = "age_bucket")
 userf1$age_impute <- NULL
 
+save(userf1, file='../userf1.RData')
 
