@@ -7,8 +7,6 @@ cTypes <- c( "character", "Date", "character",  "character", "factor", "numeric"
 users_trn <- read.csv( '../input/train_users_2.csv', colClasses = c(cTypes, "factor")) %>% mutate( source = "train" ) %>% tbl_df() 
 users_tst <- read.csv('../input/test_users.csv', colClasses = cTypes) %>% mutate( source = "test" ) %>% tbl_df() 
 
-countries <- read.csv('../input/countries.csv') %>% tbl_df()
-age_gen <- read.csv('../input/age_gender_bkts.csv') %>% tbl_df()
 sessions <- read_csv('../input/sessions.csv') %>% tbl_df()
 sessions$action <- as.factor( sessions$action )
 sessions$action_type <- as.factor( sessions$action_type )

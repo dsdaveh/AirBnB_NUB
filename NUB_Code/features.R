@@ -1,9 +1,13 @@
 library(ggplot2)
 library(stringr)
 library(dplyr)
+library(tidyr)
 
 if (! exists("users"))    load(file="../users.RData") # source('data_prep.R')
 if (! exists("sessions")) load(file="../sessions.RData") # source('data_prep.R')
+
+countries <- read.csv('../input/countries.csv') %>% tbl_df()
+age_gender_bkts <- read.csv('../input/age_gender_bkts.csv') %>% tbl_df()
 
 userf1 <- users
 
@@ -89,3 +93,28 @@ save(userf1, file='../userf1.RData')
 #                                            n_distinct(action_detail),
 #                                            n_distinct(device_type)) 
 # summary(ses_cnts)
+
+
+# age_gender ... place the male/female ratio for the age group for the user (or 1)
+age2 <- age_gender_bkts %>% 
+    spread( gender, population_in_thousands) %>%
+    mutate( mf_ratio = male/female )
+age2$age_bucket <- as.numeric( gsub( "[^0-9].*", "", age2$age_bucket ) )
+
+userf1 %>% userf1 %>% 
+    mutate( age_bucket = ifelse( age > 104, -1, floor(age / 5) * 5 )) %>%
+    mutate( age_bucket_key = paste(age_bucket, country_destination))
+
+
+# an if statement probably would have been easier, but its done now
+len_age <- length( unique( age2$country_destination) )
+age2 <- age2 %>% bind_rows( data.frame(
+    age_bucket = rep( -99, len_age), 
+    country_destination = unique( age2$country_destination),
+    year = rep(2015, len_age),
+    female = rep(1, len_age),
+    male = rep(1, len_age),
+    mf_ratio = rep( 1.0, len_age)  ))
+    
+userf1 <- userf1 %>% left_join( age2, id = "age_bucket")
+
