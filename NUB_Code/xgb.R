@@ -139,11 +139,12 @@ if (i > 1) {
 ## eval_metric="ndcg" (no feval)                                     Mean score (full... = 0.860403
 ## nrnd=281                                     ...full ts = 0.859302  Kaggle=0.87569,
 ## *1    return  (verified full = 0.860403 )
-## add fea: e_n12hr      (full training set)= 0.860451                        Kaggle=	0.87650  (+1 -> #89)
-## add fea: e_n30hr, e_n6d (full training set)= 0.860660                      Kaggle=   0.87582
-## eval="ncdg@5" 5-fold summary: Mean = 0.852913, sd = 0.001647  full=0.860352  Kaggle: 0.87593
-## n=334                                                         full=0.860222  
-## added mf_rat features ... training set)= 0.859594 Kaggle: 0.87502
+## add fea: e_n12hr                                                          full= 0.860451 Kaggle=	0.87650  (+1 -> #89)
+## add fea: e_n30hr, e_n6d                                                   full= 0.860660 Kaggle= 0.87582
+## eval="ncdg@5" 5-fold summary:             Mean = 0.852913, sd = 0.001647  full= 0.860352 Kaggle: 0.87593
+## n=334                                                                     full= 0.860222  
+## added mf_rat features ... 5-fold summary: Mean = 0.852747, sd = 0.001544  full= 0.859594 Kaggle: 0.87502
+## check that mf_rat as numeric versus char makes no difference (confirmed)
  
 stopifnot( create_csv )
 
