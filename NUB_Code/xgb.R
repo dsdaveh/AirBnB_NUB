@@ -21,9 +21,9 @@ if ( exists("set_run_id") ) {
 }
 tcheck.print <- TRUE
 set.seed(1)
-kfold <- -1   #set to -1 to skip
+kfold <- 5   #set to -1 to skip
 only1 <- FALSE  
-create_csv <- TRUE
+create_csv <- FALSE
 ndcg_mean <- function(preds, dtrain) {
     truth <- getinfo(dtrain, "label")
     pred12 <- matrix( preds, nrow=12) 
@@ -59,7 +59,8 @@ X$country_destination <- NULL
 X$source <- NULL
 
 #userf1 %>% filter( source=='train') %>% group_by(country_destination) %>% summarize( n=n()) %>% ungroup %>% arrange(desc(n))
-y <- recode(labels,"'NDF'=0; 'US'=1; 'other'=2; 'FR'=3; 'IT'=4; 'GB'=5; 'ES'=6; 'CA'=7; 'DE'=8; 'NL'=9; 'AU'=10; 'PT'=11")
+#y <- recode(labels,"'NDF'=0; 'US'=1; 'other'=2; 'FR'=3; 'IT'=4; 'GB'=5; 'ES'=6; 'CA'=7; 'DE'=8; 'NL'=9; 'AU'=10; 'PT'=11")
+y <- country_to_int( labels ) 
 
 X_test <- userf1 %>% filter( source == "test")
 X_test$country_destination <- NULL
@@ -142,11 +143,12 @@ if (i > 1) {
 ## add fea: e_n30hr, e_n6d (full training set)= 0.860660                      Kaggle=   0.87582
 ## eval="ncdg@5" 5-fold summary: Mean = 0.852913, sd = 0.001647  full=0.860352  Kaggle: 0.87593
 ## n=334                                                         full=0.860222  
+## added mf_rat features ... training set)= 0.859594 Kaggle: 0.87502
  
 stopifnot( create_csv )
 
 dtrain <- xgb.DMatrix(data.matrix(X[ ,-1]), label = y, missing = NA)
-
+tcheck( desc="begin train full model") ####
 
 # cv <- xgb.cv(data = data.matrix(X[ ,-1]) , missing = NA
 #                , label = y

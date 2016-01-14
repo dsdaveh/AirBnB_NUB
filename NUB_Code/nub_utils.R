@@ -54,6 +54,9 @@ replace_na <- function( df, verbose=FALSE ) {
     return(df)
 }
 
+country_rank <- 0:11
+names(country_rank) <- c('NDF', 'US', 'other', 'FR', 'IT', 'GB', 'ES', 'CA', 'DE', 'NL', 'AU', 'PT')
+country_to_int <- function( str ) country_rank[str]
 
 if (! exists("tcheck.print")) tcheck.print = FALSE
 if (! exists("tcheck.df")) tcheck.df <- data.frame( stringsAsFactors = FALSE)

@@ -98,23 +98,19 @@ save(userf1, file='../userf1.RData')
 # age_gender ... place the male/female ratio for the age group for the user (or 1)
 age2 <- age_gender_bkts %>% 
     spread( gender, population_in_thousands) %>%
-    mutate( mf_ratio = male/female )
-age2$age_bucket <- as.numeric( gsub( "[^0-9].*", "", age2$age_bucket ) )
+    mutate( mf_ratio = male/female ) %>%
+    mutate( age_bucket = as.numeric( gsub( "[^0-9].*", "", age_bucket ) ))
 
-userf1 %>% userf1 %>% 
-    mutate( age_bucket = ifelse( age > 104, -1, floor(age / 5) * 5 )) %>%
-    mutate( age_bucket_key = paste(age_bucket, country_destination))
-
-
-# an if statement probably would have been easier, but its done now
-len_age <- length( unique( age2$country_destination) )
-age2 <- age2 %>% bind_rows( data.frame(
-    age_bucket = rep( -99, len_age), 
-    country_destination = unique( age2$country_destination),
-    year = rep(2015, len_age),
-    female = rep(1, len_age),
-    male = rep(1, len_age),
-    mf_ratio = rep( 1.0, len_age)  ))
+age_agg <- age2 %>% group_by(age_bucket) %>% summarise(
+    mf_rat_min = country_destination[ which.min( mf_ratio) ] ,
+    mf_rat_max = country_destination[ which.max( mf_ratio) ] ,
+    mf_rat_diff = max(mf_ratio) - min(mf_ratio)
+)
     
-userf1 <- userf1 %>% left_join( age2, id = "age_bucket")
+userf1 <- userf1 %>%
+    mutate( age_impute = ifelse( is.na(age), 30, age)) %>%   # mf_ratio for 30 is very close to 1.0 anyway
+    mutate( age_bucket = ifelse( age_impute > 104, 30, floor(age_impute / 5) * 5 )) %>%
+    left_join( age_agg, by = "age_bucket")
+userf1$age_impute <- NULL
+
 
