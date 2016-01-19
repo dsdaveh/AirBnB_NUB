@@ -11,6 +11,12 @@ library(bit64)
 source('nub_utils.R')
 if (! exists("userf1")) load(file="../userf1.RData") # source('features.R')
 
+ndf_pred <- rbind( fread( '../intermediate_results/train_ndf_pred_h2o_stack_2016_01_18_151012.csv'), 
+                   fread( '../intermediate_results/test_ndf_pred_h2o_stack_2016_01_18_151012.csv') )
+
+userf1 <- userf1 %>% left_join( ndf_pred , by="id")
+userf1$truth <- NULL
+
 tcheck(0) ####
 ### parameters
 if ( exists("set_run_id") ) {
@@ -23,7 +29,7 @@ tcheck.print <- TRUE
 set.seed(1)
 kfold <- 5   #set to -1 to skip
 only1 <- FALSE  
-create_csv <- FALSE
+create_csv <- TRUE
 ndcg_mean <- function(preds, dtrain) {
     truth <- getinfo(dtrain, "label")
     pred12 <- matrix( preds, nrow=12) 
@@ -145,6 +151,8 @@ if (i > 1) {
 ## n=334                                                                     full= 0.860222  
 ## added mf_rat features ... 5-fold summary: Mean = 0.852747, sd = 0.001544  full= 0.859594 Kaggle: 0.87502
 ## check that mf_rat as numeric versus char makes no difference (confirmed)
+## add isNDF preds       ... 5-fold summary: Mean = 0.893005, sd = 0.002092  full= 0.899820 Kaggle: 0.86896 WTF!!
+
  
 stopifnot( create_csv )
 
