@@ -28,13 +28,18 @@ count_occurance <- function(x, str) length( grep(str, x))
 first_occurance <- function(x, str) grep(str,x)[1]
 
 ses_agg <- sessions %>% group_by( id ) %>%
-    mutate( e_12hr = secs_elapsed > 12*3600, 
+    mutate( e_5min = secs_elapsed > 5*60,
+            e_1hr = secs_elapsed > 3600,
+            e_12hr = secs_elapsed > 12*3600, 
             e_30hr = secs_elapsed > 30*3600,
-            e_6d  = secs_elapsed > 6*24*3600) %>%
+            e_6d  = secs_elapsed > 6*24*3600,
+            filter_view_search_results = (action_detail == "view_search_results") ) %>%
     summarise(
         e0 = first(secs_elapsed),
         e_total = sum(secs_elapsed, na.rm=TRUE),
         e_max = max(secs_elapsed, na.rm=TRUE),
+        e_n5min = sum( e_5min, na.rm=TRUE ),
+        e_n1hr = sum( e_1hr, na.rm=TRUE ),
         e_n12hr = sum( e_12hr, na.rm=TRUE ),
         e_n30hr = sum( e_12hr, na.rm=TRUE ),
         e_n6d = sum( e_12hr, na.rm=TRUE ),
@@ -53,6 +58,8 @@ ses_agg <- sessions %>% group_by( id ) %>%
         w_wishlist = first_occurance( action_detail, "wishlist"),
         n_translate = count_occurance( action_detail, "translate"),
         w_translate = first_occurance( action_detail, "translate"),
+        n_trip = count_occurance( action_detail, "trip"),
+        w_trip = first_occurance( action_detail, "trip"),
         n_book = count_occurance( action_detail, "book"),
         w_book = first_occurance( action_detail, "book"),
         n_user_reviews = count_occurance( action_detail, "user_reviews"),
@@ -60,8 +67,10 @@ ses_agg <- sessions %>% group_by( id ) %>%
         n_photos = count_occurance( action_detail, "photos"),
         w_photos = first_occurance( action_detail, "photos"),
         n_reviews = count_occurance( action_detail, "reviews"),
-        w_reviews = first_occurance( action_detail, "reviews") 
+        w_reviews = first_occurance( action_detail, "reviews"),
+        cum_view_search_results = sum( secs_elapsed * filter_view_search_results, na.rm=TRUE )
     ) %>%
+    mutate ( rat_view_search_results = cum_view_search_results / e_total ) %>%
     mutate ( nrec_ln = log(nrec)) %>%
     mutate( lne0 = log1p(e0) ) %>%
     mutate( dev_int1 = n_dev * as.integer( dev_first )) %>%
