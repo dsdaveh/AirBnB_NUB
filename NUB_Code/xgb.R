@@ -80,6 +80,7 @@ if (kfold > 0) {
     ix_upper <- 0
     ix_inc <- ceiling( length(ix_shuffle) / kfold )
     ho_scores <- numeric(kfold)
+    auc_ndf.k <- numeric(kfold)
 }
 
 top5_preds <- function (xgb_pred) {
@@ -147,10 +148,10 @@ for (i in 1:kfold) {
     # score as a binomial model
     pred_ndf <- matrix(y_ho_pred, ncol=12, byrow = T)[,1]
     true_ndf <- truth_ho == 'NDF'
-    auc_ndf.k <- cvAUC::AUC( predictions = pred_ndf, labels = true_ndf)
+    auc_ndf.k[i] <- cvAUC::AUC( predictions = pred_ndf, labels = true_ndf)
     roc <- cvAUC( predictions = pred_ndf, labels = true_ndf)
     plot( roc$perf, col="red", avg="vertical")
-    print(auc_ndf.k)
+    cat( sprintf( "%d/%d: Mean score = %f AUC_ndf = %f\n", i, kfold, ho_scores[i], auc_ndf.k[i]) ) ; tcheck()
     
     if (only1) break
 }
@@ -159,8 +160,8 @@ if (i > 1) {
     tcheck( t=kfold, desc= 'K-f cross validation')
     # [1] "303.310000 elapsed from K-f cross validation:t=3" (Brazil)
     
-    cat( sprintf( "%d-fold summary: Mean = %f, sd = %f", 
-                  kfold, mean(ho_scores), sd(ho_scores)))
+    cat( sprintf( "%d-fold summary: NDCG Mean = %f, sd = %f, AUC_ndf Mean = %f, sd = %f\n", 
+                  kfold, mean(ho_scores), sd(ho_scores), mean(auc_ndf.k), sd(auc_ndf.k)))
 }  
 
 ## 80% 1fold validation run records:
@@ -196,7 +197,7 @@ if (i > 1) {
 ## add n_trip w_trip        1/5: Mean score = 0.851927                       full= 0.860713 Kaggle: 0.87598
 ## ndcg@5 >> merror:        1/5: Mean score = 0.851927   (all else identical)        
 ## rachel consult:          1/5: Mean score = 0.851411                       full= 0.860913 Kaggle: 0.87591
-## tune nround = 289
+## tune nround = 289        1/5: Mean score = 0.851081  AUC_ndf=0.8390609    full= 0.860316 AUC=0.8390609
  
 stopifnot( create_csv )
 
@@ -226,9 +227,6 @@ y_trn_pred <- predict(xgb, data.matrix(X[,-1]), missing = NA)
 y_trn_top5 <- as.data.frame( matrix( top5_preds( y_trn_pred ), ncol=5, byrow = TRUE)) %>% tbl_df
 y_trn_score <- score_predictions( y_trn_top5, labels)
 cat( sprintf( "Mean score (full training set)= %f\n", mean(y_trn_score)) ) ; tcheck()  
-trn_csv <- sprintf("../submissions/train_pred_%s.csv", run_id)
-trn_pred <- data.frame( id= rep(X$id, each=5), country=top5_preds(y_trn_pred) )
-write.csv(trn_pred, file=trn_csv , quote=FALSE, row.names = FALSE); tcheck( desc= trn_csv)
 
 # score as a binomial model
 pred_ndf <- matrix(y_trn_pred, ncol=12, byrow = T)[,1]
@@ -236,7 +234,11 @@ true_ndf <- labels == 'NDF'
 auc_ndf <- cvAUC::AUC( predictions = pred_ndf, labels = true_ndf)
 roc <- cvAUC( predictions = pred_ndf, labels = true_ndf)
 plot( roc$perf, col="red", avg="vertical")
-print(auc_ndf)
+cat( sprintf( "Full train: Mean score = %f AUC_ndf = %f\n", mean(y_trn_score), auc_ndf) ) ; tcheck()
+
+trn_csv <- sprintf("../submissions/train_pred_%s.csv", run_id)
+trn_pred <- data.frame( id= rep(X$id, each=5), country=top5_preds(y_trn_pred) )
+write.csv(trn_pred, file=trn_csv , quote=FALSE, row.names = FALSE); tcheck( desc= trn_csv)
 
 # Test
 y_pred <- predict(xgb, data.matrix(X_test[,-1]), missing = NA)
