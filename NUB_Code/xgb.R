@@ -7,15 +7,17 @@ library(dplyr)
 library(lubridate)
 library(data.table)
 library(bit64)
+library(pROC)
+library(cvAUC)
 
 source('nub_utils.R')
 if (! exists("userf1")) load(file="../userf1.RData") # source('features.R')
 
-ndf_pred <- rbind( fread( '../intermediate_results/train_ndf_pred_h2o_stack_2016_01_18_151012.csv'), 
-                   fread( '../intermediate_results/test_ndf_pred_h2o_stack_2016_01_18_151012.csv') )
-
-userf1 <- userf1 %>% left_join( ndf_pred , by="id")
-userf1$truth <- NULL
+# ndf_pred <- rbind( fread( '../intermediate_results/train_ndf_pred_h2o_stack_2016_01_18_151012.csv'), 
+#                    fread( '../intermediate_results/test_ndf_pred_h2o_stack_2016_01_18_151012.csv') )
+# 
+# userf1 <- userf1 %>% left_join( ndf_pred , by="id")
+# userf1$truth <- NULL
 
 tcheck(0) ####
 ### parameters
@@ -28,7 +30,7 @@ if ( exists("set_run_id") ) {
 tcheck.print <- TRUE
 set.seed(1)
 kfold <- 5   #set to -1 to skip
-only1 <- FALSE  
+only1 <- TRUE  
 create_csv <- TRUE
 ndcg_mean <- function(preds, dtrain) {
     truth <- getinfo(dtrain, "label")
@@ -52,7 +54,8 @@ xgb_params <- list(
     nthreads = 4,
     maximize = TRUE
     )
-xgb_nrounds <- 334 # was 360   
+xgb_nrounds <- 289 # was 334    ### NOTE: may get change below if xgb.cv is uncommented
+run_xgb_cv <- FALSE
 ###
 
 # prep
@@ -85,6 +88,35 @@ top5_preds <- function (xgb_pred) {
     as.vector(apply(predictions, 2, function(x) names(sort(x)[12:8])))
 }
 
+
+if ( run_xgb_cv ) { 
+    dtrain <- xgb.DMatrix(data.matrix(X[ ,-1]), label = y, missing = NA)
+    tcheck( desc="begin xgb.cv for nrounds optimization") ####
+    
+    early_stop <- 15
+    cv <- xgb.cv(data = data.matrix(X[ ,-1]) , missing = NA
+                 , label = y
+                 , params = xgb_params
+                 , nrounds = 1000
+                 , early.stop.round = early_stop
+                 , nfold = 5
+                 , feval = ndcg_mean
+                 , maximize = TRUE
+                 , prediction = TRUE
+    )
+    opt_nrounds <- nrow(cv) - early_stop
+    xgb_nrounds <- opt_nrounds
+    
+    #     #UNTESTED code: Ref: https://rpubs.com/flyingdisc/practical-machine-learning-xgboost
+    #     pred.cv <- matrix( cv$pred, nrow=length(cv$pred)/length(y), ncol=length(y))
+    #     pred.cv <- max.col(pred.cv, "last")  #???
+    #     confusionMatrix(factor(y+1), factor(pred.cv))
+    dtrain <- xgb.DMatrix(data.matrix(X[ ,-1]), label = y, missing = NA)
+    tcheck( desc="end xgb.cv for nrounds optimization") ####
+}
+
+
+
 tcheck( desc="begin kfold cross validation scores") ####
 for (i in 1:kfold) {
     if (kfold < 0) break
@@ -96,14 +128,14 @@ for (i in 1:kfold) {
 
     # train xgboost
     dtrain <- xgb.DMatrix(data.matrix(X[ -iho ,-1]), label = y[-iho], missing = NA)
-    xgb <- xgb.train(dtrain
+    xgb.k <- xgb.train(dtrain
                      , label = y[-iho]
                      , params = xgb_params
                      , nrounds = xgb_nrounds  
     )
 
     # predict values in hold out set
-    y_ho_pred <- predict(xgb, data.matrix(X[iho,-1]), missing = NA)
+    y_ho_pred <- predict(xgb.k, data.matrix(X[iho,-1]), missing = NA)
     y_ho_top5 <- as.data.frame( matrix( top5_preds( y_ho_pred ), ncol=5, byrow = TRUE)) %>% tbl_df
     truth_ho <- labels[iho]
     y_ho_score <- score_predictions( y_ho_top5, truth_ho)
@@ -111,6 +143,14 @@ for (i in 1:kfold) {
     
     ho_scores[i] <- mean(y_ho_score)
     cat( sprintf( "%d/%d: Mean score = %f\n", i, kfold, ho_scores[i]) ) ; tcheck()
+    
+    # score as a binomial model
+    pred_ndf <- matrix(y_ho_pred, ncol=12, byrow = T)[,1]
+    true_ndf <- truth_ho == 'NDF'
+    auc_ndf.k <- cvAUC::AUC( predictions = pred_ndf, labels = true_ndf)
+    roc <- cvAUC( predictions = pred_ndf, labels = true_ndf)
+    plot( roc$perf, col="red", avg="vertical")
+    print(auc_ndf.k)
     
     if (only1) break
 }
@@ -152,23 +192,14 @@ if (i > 1) {
 ## added mf_rat features ... 5-fold summary: Mean = 0.852747, sd = 0.001544  full= 0.859594 Kaggle: 0.87502
 ## check that mf_rat as numeric versus char makes no difference (confirmed)
 ## add isNDF preds       ... 5-fold summary: Mean = 0.893005, sd = 0.002092  full= 0.899820 Kaggle: 0.86896 WTF!!
-
+## add roc and remove isNDF 1/5: Mean score = 0.851252                       full= 0.859556 Kaggle: 0.87533
+## add n_trip w_trip        1/5: Mean score = 0.851927                       full= 0.860713 Kaggle: 0.87598
+## ndcg@5 >> merror:        1/5: Mean score = 0.851927   (all else identical)        
+## rachel consult:          1/5: Mean score = 0.851411                       full= 0.860913 Kaggle: 0.87591
+## tune nround = 289
  
 stopifnot( create_csv )
 
-dtrain <- xgb.DMatrix(data.matrix(X[ ,-1]), label = y, missing = NA)
-tcheck( desc="begin train full model") ####
-
-# cv <- xgb.cv(data = data.matrix(X[ ,-1]) , missing = NA
-#                , label = y
-#                , params = xgb_params
-#                , nrounds = 1000
-#                , early.stop.round = 15
-#                , nfold = 5
-#                , feval = ndcg
-#                , maximize = TRUE
-# )
-# Stopping. Best iteration: 281
 
 #retrain on full X
 # xgb <- xgboost(data = data.matrix(X[ ,-1]) , missing = NA
@@ -177,6 +208,9 @@ tcheck( desc="begin train full model") ####
 #                , nrounds = xgb_nrounds  
 #                , feval = ndcg
 # )
+dtrain <- xgb.DMatrix(data.matrix(X[ ,-1]), label = y, missing = NA)
+tcheck( desc="begin train full model") ####
+
 
 xgb <- xgb.train(dtrain , missing = NA
                , label = y
@@ -195,6 +229,14 @@ cat( sprintf( "Mean score (full training set)= %f\n", mean(y_trn_score)) ) ; tch
 trn_csv <- sprintf("../submissions/train_pred_%s.csv", run_id)
 trn_pred <- data.frame( id= rep(X$id, each=5), country=top5_preds(y_trn_pred) )
 write.csv(trn_pred, file=trn_csv , quote=FALSE, row.names = FALSE); tcheck( desc= trn_csv)
+
+# score as a binomial model
+pred_ndf <- matrix(y_trn_pred, ncol=12, byrow = T)[,1]
+true_ndf <- labels == 'NDF'
+auc_ndf <- cvAUC::AUC( predictions = pred_ndf, labels = true_ndf)
+roc <- cvAUC( predictions = pred_ndf, labels = true_ndf)
+plot( roc$perf, col="red", avg="vertical")
+print(auc_ndf)
 
 # Test
 y_pred <- predict(xgb, data.matrix(X_test[,-1]), missing = NA)
