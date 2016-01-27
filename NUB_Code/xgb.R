@@ -48,18 +48,33 @@ xgb_params <- list(
     min_child_weight = 5, #new
     subsample = 0.5,
     colsample_bytree = 0.5, 
-    eval_metric = "ndcg@5",
+    eval_metric = "mlogloss",
     objective = "multi:softprob",
     num_class = 12,
     nthreads = 4,
-    maximize = TRUE
+    maximize = FALSE
     )
-xgb_nrounds <- 289 # was 334    ### NOTE: may get change below if xgb.cv is uncommented
-run_xgb_cv <- FALSE
+xgb_nrounds <- 973 # mlogloss was 289    ### NOTE: may get change below if xgb.cv is uncommented
+run_xgb_cv <- TRUE
+ohe <- TRUE
 ###
 
 # prep
 tcheck( desc="begin data prep") ####
+
+# one-hot-encoding features
+if ( ohe ) {
+    factor_cols <- which(lapply( userf1, class) == "factor") 
+    factor_cols <- factor_cols[ -which(names(factor_cols) == 'country_destination')]  #there's probably a cooler way to remove one element
+    factor_names <- names(factor_cols)
+    ohe_formula <- as.formula( paste0( "~  ", paste( factor_names, collapse=" + ")))
+    ##df_all <- as.data.frame(df_all)
+    ##ohe_feats = c('gender', 'signup_method', 'signup_flow', 'language', 'affiliate_channel', 'affiliate_provider', 'first_affiliate_tracked', 'signup_app', 'first_device_type', 'first_browser')
+    ##dummies <- dummyVars(~ gender + signup_method + signup_flow + language + affiliate_channel + affiliate_provider + first_affiliate_tracked + signup_app + first_device_type + first_browser, data = df_all)
+    dummies <- dummyVars( ohe_formula, data = userf1)
+    userf1 <- cbind( userf1[ ,-factor_cols],
+                     as.data.frame(predict(dummies, newdata = userf1)) )
+}
 
 # split train and test
 X <- userf1 %>% filter( source == "train")
@@ -81,6 +96,7 @@ if (kfold > 0) {
     ix_inc <- ceiling( length(ix_shuffle) / kfold )
     ho_scores <- numeric(kfold)
     auc_ndf.k <- numeric(kfold)
+    auc_us.k <- numeric(kfold)
 }
 
 top5_preds <- function (xgb_pred) {
@@ -101,11 +117,11 @@ if ( run_xgb_cv ) {
                  , nrounds = 1000
                  , early.stop.round = early_stop
                  , nfold = 5
-                 , feval = ndcg_mean
-                 , maximize = TRUE
+#                  , feval = ndcg_mean
+#                  , maximize = TRUE
                  , prediction = TRUE
     )
-    opt_nrounds <- nrow(cv) - early_stop
+    opt_nrounds <- nrow(cv$dt) - early_stop
     xgb_nrounds <- opt_nrounds
     
     #     #UNTESTED code: Ref: https://rpubs.com/flyingdisc/practical-machine-learning-xgboost
@@ -134,7 +150,8 @@ for (i in 1:kfold) {
                      , params = xgb_params
                      , nrounds = xgb_nrounds  
     )
-
+    save(xgb.k, file='../intermediate_results/xgb_k_last.RData')
+    
     # predict values in hold out set
     y_ho_pred <- predict(xgb.k, data.matrix(X[iho,-1]), missing = NA)
     y_ho_top5 <- as.data.frame( matrix( top5_preds( y_ho_pred ), ncol=5, byrow = TRUE)) %>% tbl_df
@@ -143,15 +160,24 @@ for (i in 1:kfold) {
     pred_eval <- y_ho_top5 %>% bind_cols( data.frame(truth_ho, y_ho_score))
     
     ho_scores[i] <- mean(y_ho_score)
-    cat( sprintf( "%d/%d: Mean score = %f\n", i, kfold, ho_scores[i]) ) ; tcheck()
-    
+
     # score as a binomial model
-    pred_ndf <- matrix(y_ho_pred, ncol=12, byrow = T)[,1]
+    pred_mat <- matrix(y_ho_pred, ncol=12, byrow = T)
+    pred_ndf <- pred_mat[,1]
+    pred_us  <- pred_mat[,2]
     true_ndf <- truth_ho == 'NDF'
+    true_us <- truth_ho == 'US'
+    
     auc_ndf.k[i] <- cvAUC::AUC( predictions = pred_ndf, labels = true_ndf)
-    roc <- cvAUC( predictions = pred_ndf, labels = true_ndf)
-    plot( roc$perf, col="red", avg="vertical")
-    cat( sprintf( "%d/%d: Mean score = %f AUC_ndf = %f\n", i, kfold, ho_scores[i], auc_ndf.k[i]) ) ; tcheck()
+    auc_us.k[i] <- cvAUC::AUC( predictions = pred_us, labels = true_us)
+    
+    roc_ndf <- cvAUC( predictions = pred_ndf, labels = true_ndf)
+    plot( roc_ndf$perf, col="red", avg="vertical")
+    roc_us <- cvAUC( predictions = pred_us, labels = true_us)
+    plot( roc_us$perf, col="blue", avg="vertical", add=TRUE)
+    
+    cat( sprintf( "%d/%d: Mean score = %f, AUC_ndf = %f, AUC_us = %f\n", 
+                  i, kfold, ho_scores[i], auc_ndf.k[i], auc_us.k[i]) ) ; tcheck()
     
     if (only1) break
 }
@@ -160,8 +186,9 @@ if (i > 1) {
     tcheck( t=kfold, desc= 'K-f cross validation')
     # [1] "303.310000 elapsed from K-f cross validation:t=3" (Brazil)
     
-    cat( sprintf( "%d-fold summary: NDCG Mean = %f, sd = %f, AUC_ndf Mean = %f, sd = %f\n", 
-                  kfold, mean(ho_scores), sd(ho_scores), mean(auc_ndf.k), sd(auc_ndf.k)))
+    ## Untesting since adding AUC (remove this comment when appropriate)
+    cat( sprintf( "%d-fold summary: NDCG Mean = %f, sd = %f, AUC_ndf Mean = %f, sd = %f, AUC_us Mean = %f, sd = %f\n", 
+                  kfold, mean(ho_scores), sd(ho_scores), mean(auc_ndf.k), sd(auc_ndf.k), mean(auc_us.k), sd(auc_us.k)))
 }  
 
 ## 80% 1fold validation run records:
@@ -198,7 +225,21 @@ if (i > 1) {
 ## ndcg@5 >> merror:        1/5: Mean score = 0.851927   (all else identical)        
 ## rachel consult:          1/5: Mean score = 0.851411                       full= 0.860913 Kaggle: 0.87591
 ## tune nround = 289        1/5: Mean score = 0.851081  AUC_ndf=0.8390609    full= 0.860316 AUC=0.8390609
- 
+## ... add AUCs to score 1/5: Mean score = 0.851081, AUC_ndf = 0.828358, AUC_us = 0.794212 
+## ... Full train: Mean score = 0.860316, AUC_ndf = 0.839061, AUC_us = 0.807085
+## retune with merror
+## ... 1/5: Mean score = 0.848394, AUC_ndf = 0.819443, AUC_us = 0.781191
+## ... Full train: Mean score = 0.851151, AUC_ndf = 0.817664, AUC_us = 0.778202
+## tuned with mlogloss (nrn=973)  --- 12743.96 sec ~ 
+## ... 1/5: Mean score = 0.852104, AUC_ndf = 0.832814, AUC_us = 0.798879
+## ... Full train: Mean score = 0.870965, AUC_ndf = 0.855584, AUC_us = 0.827847   Kaggle: 0.87667 (+1 -> #176)
+## xgb_reduce_vars   nrnds= 926    time=7986 secs
+## ... 1/5: Mean score = 0.851213, AUC_ndf = 0.829224, AUC_us = 0.794602
+## ... Full train: Mean score = 0.868659, AUC_ndf = 0.850759, AUC_us = 0.822981
+## ohe   nrnds=1000     time= 28141 secs  ~ 8 hrs!
+## ... 1/5: Mean score = 0.851725, AUC_ndf = 0.832796, AUC_us = 0.799014
+## ... Full train: Mean score = 0.870772, AUC_ndf = 0.855546, AUC_us = 0.827476   Kaggle: 0.87777 (+21 -> #156)
+
 stopifnot( create_csv )
 
 
@@ -218,6 +259,7 @@ xgb <- xgb.train(dtrain , missing = NA
                , params = xgb_params
                , nrounds = xgb_nrounds  
 )
+save(xgb, file='../intermediate_results/xgb_last_full.RData')
 
 # imp_mat <- xgb.importance( feature_names = colnames(X)[-1], model=xgb); tcheck()
 # print(xgb.plot.importance(imp_mat))
@@ -226,15 +268,23 @@ xgb <- xgb.train(dtrain , missing = NA
 y_trn_pred <- predict(xgb, data.matrix(X[,-1]), missing = NA)
 y_trn_top5 <- as.data.frame( matrix( top5_preds( y_trn_pred ), ncol=5, byrow = TRUE)) %>% tbl_df
 y_trn_score <- score_predictions( y_trn_top5, labels)
-cat( sprintf( "Mean score (full training set)= %f\n", mean(y_trn_score)) ) ; tcheck()  
 
-# score as a binomial model
-pred_ndf <- matrix(y_trn_pred, ncol=12, byrow = T)[,1]
+# score as binomial models
+pred_mat <- matrix(y_trn_pred, ncol=12, byrow = T)
+pred_ndf <- pred_mat[,1]
+pred_us  <- pred_mat[,2]
 true_ndf <- labels == 'NDF'
+true_us <- labels == 'US'
+
 auc_ndf <- cvAUC::AUC( predictions = pred_ndf, labels = true_ndf)
-roc <- cvAUC( predictions = pred_ndf, labels = true_ndf)
-plot( roc$perf, col="red", avg="vertical")
-cat( sprintf( "Full train: Mean score = %f AUC_ndf = %f\n", mean(y_trn_score), auc_ndf) ) ; tcheck()
+auc_us <- cvAUC::AUC( predictions = pred_us, labels = true_us)
+
+roc_ndf <- cvAUC( predictions = pred_ndf, labels = true_ndf)
+plot( roc_ndf$perf, col="red", avg="vertical")
+roc_us <- cvAUC( predictions = pred_us, labels = true_us)
+plot( roc_us$perf, col="blue", avg="vertical", add=TRUE)
+
+cat( sprintf( "Full train: Mean score = %f, AUC_ndf = %f, AUC_us = %f\n", mean(y_trn_score), auc_ndf, auc_us) ) ; tcheck()
 
 trn_csv <- sprintf("../submissions/train_pred_%s.csv", run_id)
 trn_pred <- data.frame( id= rep(X$id, each=5), country=top5_preds(y_trn_pred) )
@@ -250,3 +300,5 @@ write.csv(submission, file=subfile , quote=FALSE, row.names = FALSE); tcheck( de
 tcheck_df <- get_tcheck()
 print( tcheck_df )
 print( sum(tcheck_df$delta))
+
+if (ohe) rm(userf1)  #so that userf1 is restored from RData
